@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>three.js webgl - controls - deviceorientation</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+    <link type="text/css" rel="stylesheet" href="main.css">
+</head>
+
+<body>
+    <div id="overlay">
+        <button id="startButton">Start Demo</button>
+    </div>
+
+    <script type="module">
+
+        import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.module.js";
+        import { DeviceOrientationControls } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/controls/DeviceOrientationControls.js';
+
+        let camera, scene, renderer, controls;
+
+        const startButton = document.getElementById('startButton');
+        startButton.addEventListener('click', function () {
+
+            init();
+            animate();
+
+        });
+
+        function init() {
+
+            const overlay = document.getElementById('overlay');
+            overlay.remove();
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+
+            controls = new DeviceOrientationControls(camera);
+
+            scene = new THREE.Scene();
+
+            const loader = new THREE.TextureLoader();
+            const texture = loader.load('prototype.png')
+            loader.manager.onLoad = function() {
+                texture.magFilter = THREE.NearestFilter
+                texture.minFilter = THREE.NearestFilter
+                const rt = new THREE.WebGLCubeRenderTarget(texture.image.height);
+                rt.fromEquirectangularTexture(renderer, texture);
+                scene.background = rt;
+            }
+
+            const helperGeometry = new THREE.BoxGeometry(100, 100, 100, 4, 4, 4);
+            const helperMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true });
+            const helper = new THREE.Mesh(helperGeometry, helperMaterial);
+            scene.add(helper);
+
+            //
+
+            renderer = new THREE.WebGLRenderer({ antialias: false });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            //
+
+            window.addEventListener('resize', onWindowResize);
+
+
+        }
+
+        function animate() {
+
+            window.requestAnimationFrame(animate);
+
+            controls.update();
+            renderer.render(scene, camera);
+
+        }
+
+        function onWindowResize() {
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+
+            renderer.setSize(window.innerWidth, window.innerHeight);
+
+        }
+
+    </script>
+</body>
+
+</html>
