@@ -40,7 +40,7 @@
             scene = new THREE.Scene();
 
             const loader = new THREE.TextureLoader();
-            const texture = loader.load('prototype.png')
+            const texture = loader.load('prototype-background.png')
             loader.manager.onLoad = function() {
                 texture.magFilter = THREE.NearestFilter
                 texture.minFilter = THREE.NearestFilter
