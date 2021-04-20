@@ -18,11 +18,16 @@
         import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.module.js";
         import { DeviceOrientationControls } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/controls/DeviceOrientationControls.js';
         import * as coro from 'https://cdn.jsdelivr.net/gh/nasser/ajeeb-coroutines@master/build/coroutines.esm.js'
+        import * as debug from './debug.js'
 
         const sched = new coro.Schedule()
 
-        window.onerror = function(e) {
-            alert(e)
+        debug.init()
+
+        window.onerror = function(message, source, lineno, colno, error) {
+            for (const line of error.stack.split("\n")) {
+                debug.log(line)
+            } 
         }
 
         function* waitEvent(element, event) {
