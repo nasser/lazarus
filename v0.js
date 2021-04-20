@@ -15,7 +15,7 @@ window.onerror = function (message, source, lineno, colno, error) {
 
 function* waitEvent(element, event) {
     let done = false
-    startButton.addEventListener(event, () => done = true)
+    element.addEventListener(event, () => done = true)
     while (!done) yield
 }
 
