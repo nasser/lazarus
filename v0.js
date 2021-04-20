@@ -42,7 +42,7 @@ function cameraCastMechanic (camera) {
         raycaster.setFromCamera( center, camera );        
         const intersects = raycaster.intersectObjects( cubes );
         for (const obj of intersects) {
-            if(obj.distance < 2)
+            if(obj.distance < 2.5 && obj.distance > 1.5)
                 obj.object.userData.dead = true
         }
         
