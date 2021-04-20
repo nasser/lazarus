@@ -15,9 +15,12 @@ window.onerror = function (message, source, lineno, colno, error) {
     }
 }
 
-function* waitEvent(element, event) {
+function* waitEvent(element, event, cb) {
     let done = false
-    element.addEventListener(event, () => done = true)
+    element.addEventListener(event, (...args) => {
+        done = true
+        if(cb) cb(...args)
+    })
     while (!done) yield
 }
 
@@ -106,11 +109,12 @@ function makeCubes(scene) {
 
 function* main() {
     const startButton = document.getElementById('startButton');
-    yield* waitEvent(startButton, 'click')
+    let listener = null
+    yield* waitEvent(startButton, 'click', () => listener = audio.initListener())
 
     const { renderer, camera, scene, controls } = init()
     gizmos.init(scene)
-    audio.init(camera)
+    audio.init(camera, listener)
     yield* audio.loadSounds('sounds/coin.wav')
     const cubes = makeCubes(scene)
     const mechanic = cameraCastMechanic(camera)
@@ -125,14 +129,11 @@ function* main() {
 }
 
 function init() {
-
     const overlay = document.getElementById('overlay');
     overlay.remove();
 
     let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
-
     let controls = new DeviceOrientationControls(camera);
-
     let scene = new THREE.Scene();
 
     const loader = new THREE.TextureLoader();

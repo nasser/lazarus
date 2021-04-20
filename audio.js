@@ -4,10 +4,19 @@ import * as coro from 'https://cdn.jsdelivr.net/gh/nasser/ajeeb-coroutines@maste
 let sound
 let buffers = {}
 
-export function init(camera) {
+/**
+ * call this from a user-interaction to make iOS happy
+ */
+export function initListener() {
     const listener = new THREE.AudioListener();
-    camera.add(listener);
+    const source = listener.context.createBufferSource();
+    source.connect(listener.context.destination);
+    source.start();
+    return listener
+}
 
+export function init(camera, listener) {
+    camera.add(listener);
     sound = new THREE.Audio(listener);
     sound.setLoop(false);
     sound.setVolume(0.5);
