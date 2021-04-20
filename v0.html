@@ -17,27 +17,43 @@
 
         import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.module.js";
         import { DeviceOrientationControls } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/controls/DeviceOrientationControls.js';
+        import * as coro from 'https://cdn.jsdelivr.net/gh/nasser/ajeeb-coroutines@master/build/coroutines.esm.js'
 
-        let camera, scene, renderer, controls;
+        const sched = new coro.Schedule()
 
-        const startButton = document.getElementById('startButton');
-        startButton.addEventListener('click', function () {
+        window.onerror = function(e) {
+            alert(e)
+        }
 
-            init();
-            animate();
+        function* waitEvent(element, event) {
+            let done = false
+            startButton.addEventListener(event, () => done = true)
+            while(!done) yield
+        }
 
-        });
+        sched.add(function* () {
+            const startButton = document.getElementById('startButton');
+            yield* waitEvent(startButton, 'click')            
+
+            const { renderer, camera, scene, controls } = init()
+
+            while(true) {
+                controls.update();
+                renderer.render(scene, camera);
+                yield
+            }
+        })
 
         function init() {
 
             const overlay = document.getElementById('overlay');
             overlay.remove();
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
+            let camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100);
 
-            controls = new DeviceOrientationControls(camera);
+            let controls = new DeviceOrientationControls(camera);
 
-            scene = new THREE.Scene();
+            let scene = new THREE.Scene();
 
             const loader = new THREE.TextureLoader();
             const texture = loader.load('prototype-background.png')
@@ -54,27 +70,14 @@
             const helper = new THREE.Mesh(helperGeometry, helperMaterial);
             scene.add(helper);
 
-            //
-
-            renderer = new THREE.WebGLRenderer({ antialias: false });
+            let renderer = new THREE.WebGLRenderer({ antialias: false });
             renderer.setPixelRatio(window.devicePixelRatio);
             renderer.setSize(window.innerWidth, window.innerHeight);
             document.body.appendChild(renderer.domElement);
 
-            //
-
             window.addEventListener('resize', onWindowResize);
 
-
-        }
-
-        function animate() {
-
-            window.requestAnimationFrame(animate);
-
-            controls.update();
-            renderer.render(scene, camera);
-
+            return { renderer, scene, camera, controls }
         }
 
         function onWindowResize() {
@@ -85,6 +88,12 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
 
         }
+
+        function tick() {
+            requestAnimationFrame(tick);
+            sched.tick();
+        }
+        tick()
 
     </script>
 </body>
