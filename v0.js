@@ -110,9 +110,17 @@ function makeCubes(scene) {
 function* main() {
     const startButton = document.getElementById('startButton');
     let listener = null
-    yield* waitEvent(startButton, 'click', () => listener = audio.initListener())
+    let renderer, camera, scene, controls;
+    yield* waitEvent(startButton, 'click', () => {
+        listener = audio.initListener()
+        const i = init()
+        renderer = i.renderer
+        camera = i.camera
+        scene = i.scene
+        controls = i.controls
+    })
 
-    const { renderer, camera, scene, controls } = init()
+    // const { renderer, camera, scene, controls } = init()
     gizmos.init(scene)
     audio.init(camera, listener)
     yield* audio.loadSounds('sounds/coin.wav')
