@@ -85,6 +85,7 @@ a, button, input, select {
 
 #debug {
 	position: fixed;
+	overflow: scroll;
 	bottom: 0;
 	left: 0;
 	width: 100%;
@@ -96,6 +97,7 @@ a, button, input, select {
 
 #debug code {
 	white-space: pre-wrap;
+	overflow-wrap: break-word;
 	background: black;
 	float: left;
 	clear: both;
