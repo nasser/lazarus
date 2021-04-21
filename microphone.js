@@ -1,5 +1,5 @@
 import * as coro from 'https://cdn.jsdelivr.net/gh/nasser/ajeeb-coroutines@master/build/coroutines.esm.js'
-import AudioRecorder from 'https://cdn.jsdelivr.net/npm/audio-recorder-polyfill/index.js'
+import AudioRecorder from 'https://cdn.jsdelivr.net/npm/audio-recorder-polyfill@0.4.1/index.js'
 if(!window.MediaRecorder) {
     window.MediaRecorder = AudioRecorder
 }
@@ -15,28 +15,20 @@ export function* init() {
 
 
 export function* recordAndDownload(name='recording.wav', length=5) {
-    const mediaRecorder = new MediaRecorder(mediaStream, { mimeType: 'audio/webm' })
+    const mimeType = 'audio/webm'
+    const mediaRecorder = new MediaRecorder(mediaStream)
     const recordedChunks = []
     mediaRecorder.addEventListener('dataavailable', e => {
         if (e.data.size > 0)
             recordedChunks.push(e.data)
     })
 
-    mediaRecorder.addEventListener('stop', () => saveData(name, recordedChunks))
+    let blob = null
+    mediaRecorder.addEventListener('stop', () => blob = new Blob(recordedChunks, { type:mimeType }))
 
     mediaRecorder.start()
     yield* coro.wait(length)
     mediaRecorder.stop()
-}
-
-function saveData(name, chunks) {
-    const url = URL.createObjectURL(new Blob(chunks))
-    const a = document.createElement("a")
-    document.body.appendChild(a)
-    a.style.display = 'none'
-    a.href = url
-    a.download = name
-    a.click()
-    URL.revokeObjectURL(url);
-    document.body.removeChild(a)
+    while(!blob) yield
+    return blob
 }
