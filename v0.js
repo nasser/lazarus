@@ -1,5 +1,6 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.module.js"
 import { DeviceOrientationControls } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/controls/DeviceOrientationControls.js'
+import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/loaders/GLTFLoader.js'
 import * as coro from 'https://cdn.jsdelivr.net/gh/nasser/ajeeb-coroutines@master/build/coroutines.esm.js'
 import * as debug from './debug.js'
 import * as gizmos from './gizmos.js'
@@ -9,6 +10,17 @@ const sched = new coro.Schedule()
 
 debug.init()
 debug.logUncaughtErrors()
+
+const gltfLoader = new GLTFLoader()
+
+function* waitLoadGltf (url) {
+    let value = null
+    gltfLoader.load(url, gltf => {
+        value = gltf.scene
+    })
+    while(value === null) yield
+    return value
+}
 
 function* waitEvent (element, event, cb) {
     let done = false
@@ -38,11 +50,34 @@ function renderCrosshair (camera) {
     gizmoCross(forward)
 }
 
-function sphericalToCartesian (r, t, p) {
-    const x = r * Math.sin(t) * Math.cos(p)
-    const y = r * Math.sin(t) * Math.sin(p)
-    const z = r * Math.cos(t)
-    return [x, y, z]
+function collectChildren (obj) {
+    const children = {}
+    
+    for (const c of obj.children) {
+        children[c.name] = c
+    }
+
+    return children
+}
+
+function* beatsMechanic (scene, beatObject) {
+    function* beatMovement (beat) {
+        while(beat.position.z > -5) {
+            beat.position.z -= 0.05 // TODO time delta
+            yield
+        }
+
+        scene.remove(beat)
+    }
+
+    while(true) {
+        const beat = beatObject.clone()
+        beat.position.z = 15
+        beat.rotation.z = Math.random() * Math.PI * 2
+        scene.add(beat)
+        sched.add(beatMovement(beat))
+        yield* coro.wait(1)
+    }
 }
 
 /// game
@@ -60,10 +95,19 @@ function* main () {
         controls = i.controls
     })
 
-    // const { renderer, camera, scene, controls } = init()
     gizmos.init(scene)
     audio.init(camera, listener)
     yield* audio.loadSounds('sounds/coin.wav')
+    const gltf = yield* waitLoadGltf('objects/ring.glb')
+    const assets = collectChildren(gltf)
+    const ring = assets.ring.clone()
+    scene.add(ring)
+    const light = new THREE.AmbientLight(0x404040)
+    scene.add(light)
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
+    directionalLight.position.z -= 1
+    scene.add(directionalLight)
+    sched.add(beatsMechanic(scene, assets.beat))
     while (true) {
         gizmos.reset()
         controls.update()
@@ -78,7 +122,7 @@ function init () {
     const overlay = document.getElementById('overlay')
     overlay.remove()
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1100)
+    const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.1, 1100)
     const controls = new DeviceOrientationControls(camera)
     const scene = new THREE.Scene()
 
