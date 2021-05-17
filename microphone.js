@@ -6,15 +6,14 @@ if(!window.MediaRecorder) {
 
 let mediaStream = null
 
-export function* init() {
+export function* init () {
     let done = false
     navigator.mediaDevices.getUserMedia({ audio: true, video: false })
-        .then(stream => {mediaStream = stream; done = true})
+        .then(stream => { mediaStream = stream; done = true })
     while(!done) yield
 }
 
-
-export function* recordAndDownload(name='recording.wav', length=5) {
+export function* recordAndDownload (name = 'recording.wav', length = 5) {
     const mimeType = 'audio/webm'
     const mediaRecorder = new MediaRecorder(mediaStream)
     const recordedChunks = []
