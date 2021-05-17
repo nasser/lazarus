@@ -8,13 +8,7 @@ import * as audio from './audio.js'
 const sched = new coro.Schedule()
 
 debug.init()
-
-window.onerror = function (message, source, lineno, colno, error) {
-    debug.log(message)
-    for (const line of error.stack.split("\n")) {
-        debug.log(line)
-    }
-}
+debug.logUncaughtErrors()
 
 function* waitEvent (element, event, cb) {
     let done = false
