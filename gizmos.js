@@ -1,6 +1,9 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.module.js"
 
 export let gizmoObject
+let index = 0
+let vertsAttribute = null
+let colorsAttribute = null
 
 export const colors = {
     red: new THREE.Color(1, 0, 0, 1),
@@ -19,37 +22,39 @@ export function init (scene, options) {
   
     const vertCount = options.size || 2000
   
-    const geometry = new THREE.Geometry()
-    for (let i = 0; i < vertCount; i++) {
-        geometry.vertices.push(new THREE.Vector3(0, 0, 0))
-        geometry.colors.push(colors.white)
-    }
+    const geometry = new THREE.BufferGeometry()
+    const vertices = Float32Array.from(Array(vertCount*3).fill(0))
+    const colors = Float32Array.from(Array(vertCount*4).fill(1))
+    geometry.setAttribute('position', new THREE.BufferAttribute( vertices, 3 ) );
+    geometry.setAttribute('color', new THREE.BufferAttribute( colors, 4 ) );
+    vertsAttribute = geometry.getAttribute('position')
+    colorsAttribute = geometry.getAttribute('color')
     
     gizmoObject = new THREE.LineSegments(geometry, material)
+    gizmoObject.userData.size = vertCount
     scene.add(gizmoObject)
 }
 
 export function reset () {
-    gizmoObject.geometry.vertices.length = 0 // TODO ???
-    gizmoObject.geometry.colors.length = 0 // TODO ???
+    index = 0
 }
 
 export function draw () {
-    gizmoObject.geometry.colorsNeedUpdate = true
-    gizmoObject.geometry.verticesNeedUpdate = true
+    vertsAttribute.needsUpdate = true
+    vertsAttribute.updateRange.count = index * 3
+    colorsAttribute.needsUpdate = true
+    colorsAttribute.updateRange.count = index * 4
+    gizmoObject.geometry.setDrawRange(0, index)
     gizmoObject.geometry.computeBoundingSphere()
 }
 
 export function line (a, b, color) {
-    // if(index >= gizmoObject.geometry.vertices.length)
-    //   return;
+    if(index >= gizmoObject.userData.size)
+      return;
     color = color || colors.white
-    // gizmoObject.geometry.vertices[index] = a
-    // gizmoObject.geometry.colors[index] = color
-    gizmoObject.geometry.vertices.push(a)
-    gizmoObject.geometry.colors.push(color)
-    // gizmoObject.geometry.vertices[index] = b
-    // gizmoObject.geometry.colors[index] = color
-    gizmoObject.geometry.vertices.push(b)
-    gizmoObject.geometry.colors.push(color)
+    vertsAttribute.setXYZ(index  , a.x, a.y, a.z)
+    vertsAttribute.setXYZ(index+1, b.x, b.y, b.z)
+    colorsAttribute.setXYZW(index  , color.r, color.g, color.b, color.a)
+    colorsAttribute.setXYZW(index+1, color.r, color.g, color.b, color.a)
+    index += 2
 }

@@ -30,7 +30,6 @@ export function* loadSounds(...urls) {
     }
     while(Object.keys(buffers).length < bufferStartSize + urls.length) yield
     return buffers
-    
 }
 
 export function play(name) {
