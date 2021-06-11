@@ -93,16 +93,26 @@ function drawBeatChains(beats) {
     }
 }
 
-function* beatsMechanic (sched, scene, beatObject, timestamps=[]) {
-    const initial = input.now.time.now
+function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
     const startDistance = 15
     const removeDistance = -5
     const approachSpeed = 2 // unit per second
     const timeToZero = startDistance / approachSpeed
-    const adjustedTimestamps = timestamps.map(t => t - timeToZero)
-    const delays = adjustedTimestamps.map((t, i) => t - adjustedTimestamps[i-1] || t)
-    console.log('[initial]', initial);
+    
+    let angle = 0
+    const levelData1 = levelData.map(({time, step}) => {
+        if(step)
+            angle += step * Math.PI / 4;
+        return { time:time - timeToZero, angle }
+    })
+    const levelData2 = levelData1.map((l, i) => {
+        return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
+    })
+    // const adjustedTimestamps = levelData.map(t => t.time - timeToZero)
+    // const delays = adjustedTimestamps.map((t, i) => t - adjustedTimestamps[i-1] || t)
+    const playbackDelay = levelData2[0].delay < 0 ? Math.abs(levelData2[0].delay) : 0
     console.log('[timeToZero]', timeToZero);
+    console.log('[delays]', levelData2);
 
     function* beatMovement (beat) {
         while(beat.position.z > removeDistance) {
@@ -113,16 +123,21 @@ function* beatsMechanic (sched, scene, beatObject, timestamps=[]) {
         scene.remove(beat)
     }
 
-    let angle = 0
+    sched.add(function* () {
+        yield* coro.wait(playbackDelay)
+        sound.play()
+    })
+
+    // let angle = 0
     let prev = null
 
-    for (const delay of delays) {
-        yield* coro.wait(delay)
+    for (const l of levelData2) {
+        yield* coro.wait(l.delay)
         const beat = beatObject.clone()
         _beats.push(beat)
         beat.position.z = startDistance
-        beat.rotation.z = angle
-        angle += Math.PI / 4
+        beat.rotation.z = l.angle
+        // angle += Math.PI / 4
         scene.add(beat)
         sched.add(beatMovement(beat))
         prev = beat
@@ -136,9 +151,11 @@ function* beatsMechanic (sched, scene, beatObject, timestamps=[]) {
 function initScene () {
     const renderer = new THREE.WebGLRenderer({ antialias: false })
     const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.1, 1100)
-    camera.position.z -= 5
-    const controls = new DeviceOrientationControls(camera)
-    // const controls = new OrbitControls(camera, renderer.domElement)
+    camera.position.z -= 1
+    const controls =
+    navigator.userAgent.match(/Android|iPhone/) ?
+        new DeviceOrientationControls(camera) :
+        new OrbitControls(camera, renderer.domElement)
     const scene = new THREE.Scene()
 
     const loader = new THREE.TextureLoader()
@@ -189,9 +206,9 @@ export function* main () {
     // load audio
     audio.init(camera, listener)
     startButton.textContent = "Loading Audio..."
-    const audioBuffers = yield* audio.loadSounds('sounds/coin.wav', 'audio/music/ai.mp3')
+    const audioBuffers = yield* audio.loadSounds('sounds/coin.wav', 'audio/music/bpm73.mp3')
     const sound = new THREE.Audio(listener)
-    sound.setBuffer(audioBuffers['audio/music/ai.mp3'])
+    sound.setBuffer(audioBuffers['audio/music/bpm73.mp3'])
     sound.setLoop(false)
     sound.setVolume(1)
     input.inputPipeline.push(audioTime(sound)) // ???
@@ -214,9 +231,8 @@ export function* main () {
 
     // schedule mechanic
     gameSched.add(function* () {
-        yield* coro.wait(0)
-        sound.play()
-        gameSched.add(beatsMechanic(gameSched, scene, assets.beat, levelData))
+        yield* coro.wait(1)
+        gameSched.add(beatsMechanic(gameSched, scene, assets.beat, sound, levelData))
     })
     
     // main loop
