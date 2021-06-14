@@ -45,6 +45,16 @@ function audioTime(audio) {
     }
 }
 
+function highlightWall(wall, index, size) {
+    const uvs = wall.geometry.attributes.uv
+    const u = index/size + 1/(size*2)
+    for (let i = 0; i < uvs.count; i++) {
+        const v = uvs.getY(i)
+        uvs.setXY( i, u, v );
+    }
+    uvs.needsUpdate = true
+}
+
 function gizmoCross (center) {
     gizmos.line(center, center.clone().add(new THREE.Vector3(.1, 0, 0)))
     gizmos.line(center, center.clone().add(new THREE.Vector3(-.1, 0, 0)))
@@ -54,13 +64,36 @@ function gizmoCross (center) {
     gizmos.line(center, center.clone().add(new THREE.Vector3(0, -.1, 0)))
 }
 
-function renderCrosshair (camera) {
+function* renderCrosshair (scene, camera) {
+    const raycaster = new THREE.Raycaster();
+    const origin = new THREE.Vector3(0, 0, 0)
+    const walls = scene.children.filter(o => o.name === 'wall')
+    for (const wall of walls) {
+        console.log(wall.geometry.boundingSphere);
+    }
+
     // assumes camera is at origin
-    const forward = new THREE.Vector3()
-    camera.getWorldDirection(forward)
-    forward.normalize()
-    forward.multiplyScalar(2)
-    gizmoCross(forward)
+    while(true) {
+        const forward = new THREE.Vector3()
+        camera.getWorldDirection(forward)
+        forward.normalize()
+
+        for (const wall of walls) {
+            highlightWall(wall, 1, 16)
+        }
+        raycaster.set( origin, forward );
+        // raycaster.setFromCamera( new THREE.Vector2(.5,.5), camera );
+        const intersects = raycaster.intersectObjects( walls );
+        for (const { object } of intersects) {
+            highlightWall(object, 6, 16)
+        }
+
+        forward.multiplyScalar(2)
+        gizmoCross(forward)
+
+
+        yield
+    }
 }
 
 /**
@@ -77,8 +110,6 @@ function collectChildren (obj) {
     return children
 }
 
-const _beats = []
-
 function drawBeatChains(beats) {
     for (let i = 0; i < beats.length-1; i++) {
         const a = beats[i]
@@ -94,16 +125,18 @@ function drawBeatChains(beats) {
 }
 
 function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
-    const startDistance = 15
-    const removeDistance = -5
+    const beats = []
+
+    const startScale = 15
+    const removeScale = 0.25
     const approachSpeed = 2 // unit per second
-    const timeToZero = startDistance / approachSpeed
+    const timeToOne = (startScale-1) / approachSpeed
     
     let angle = 0
     const levelData1 = levelData.map(({time, step}) => {
         if(step)
-            angle += step * Math.PI / 4;
-        return { time:time - timeToZero, angle }
+            angle += step * Math.PI / 8;
+        return { time:time - timeToOne, angle }
     })
     const levelData2 = levelData1.map((l, i) => {
         return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
@@ -111,15 +144,19 @@ function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
     // const adjustedTimestamps = levelData.map(t => t.time - timeToZero)
     // const delays = adjustedTimestamps.map((t, i) => t - adjustedTimestamps[i-1] || t)
     const playbackDelay = levelData2[0].delay < 0 ? Math.abs(levelData2[0].delay) : 0
-    console.log('[timeToZero]', timeToZero);
+    console.log('[timeToZero]', timeToOne);
     console.log('[delays]', levelData2);
 
     function* beatMovement (beat) {
-        while(beat.position.z > removeDistance) {
-            beat.position.z -= approachSpeed * input.now.audioTime.delta
+        // while(beat.scale.x > removeScale) {
+        while(beat.scale.x > 1 + input.now.audioTime.delta) {
+            let s = beat.scale.x - approachSpeed * input.now.audioTime.delta
+            beat.scale.set(s, s, s)
             yield
         }
 
+        beat.scale.set(1, 1, 1)
+        yield* coro.wait(1)
         scene.remove(beat)
     }
 
@@ -134,15 +171,16 @@ function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
     for (const l of levelData2) {
         yield* coro.wait(l.delay)
         const beat = beatObject.clone()
-        _beats.push(beat)
-        beat.position.z = startDistance
-        beat.rotation.z = l.angle
-        // angle += Math.PI / 4
+        beat.scale.set(startScale, startScale, startScale)
+        beats.push(beat)
+        beat.rotation.y = l.angle
         scene.add(beat)
         sched.add(beatMovement(beat))
         prev = beat
     }
 }
+
+const onMobie = navigator.userAgent.match(/Android|iPhone/)
 
 /**
  * annoyingly must be called from button callback on iOS, can't just be a coro
@@ -151,26 +189,24 @@ function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
 function initScene () {
     const renderer = new THREE.WebGLRenderer({ antialias: false })
     const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.1, 1100)
-    camera.position.z -= 1
-    const controls =
-    navigator.userAgent.match(/Android|iPhone/) ?
-        new DeviceOrientationControls(camera) :
-        new OrbitControls(camera, renderer.domElement)
+    if(!onMobie)
+        camera.position.y += 0.5
+    const controls = onMobie ? new DeviceOrientationControls(camera) : new OrbitControls(camera, renderer.domElement)
     const scene = new THREE.Scene()
 
-    const loader = new THREE.TextureLoader()
-    const texture = loader.load('prototype-background.png', () => {
-        texture.magFilter = THREE.NearestFilter
-        texture.minFilter = THREE.NearestFilter
-        const rt = new THREE.WebGLCubeRenderTarget(texture.image.height)
-        rt.fromEquirectangularTexture(renderer, texture)
-        scene.background = rt
-    })
+    // const loader = new THREE.TextureLoader()
+    // const texture = loader.load('prototype-background.png', () => {
+    //     texture.magFilter = THREE.NearestFilter
+    //     texture.minFilter = THREE.NearestFilter
+    //     const rt = new THREE.WebGLCubeRenderTarget(texture.image.height)
+    //     rt.fromEquirectangularTexture(renderer, texture)
+    //     scene.background = rt
+    // })
 
-    const helperGeometry = new THREE.BoxGeometry(100, 100, 100, 4, 4, 4)
-    const helperMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true })
-    const helper = new THREE.Mesh(helperGeometry, helperMaterial)
-    scene.add(helper)
+    // const helperGeometry = new THREE.BoxGeometry(100, 100, 100, 4, 4, 4)
+    // const helperMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true })
+    // const helper = new THREE.Mesh(helperGeometry, helperMaterial)
+    // scene.add(helper)
 
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setSize(window.innerWidth, window.innerHeight)
@@ -215,10 +251,28 @@ export function* main () {
 
     // load geometry
     startButton.textContent = "Loading Geometry..."
-    const gltf = yield* waitLoadGltf('objects/ring.glb')
+    const gltf = yield* waitLoadGltf('objects/ring2.glb')
     const assets = collectChildren(gltf)
-    const ring = assets.ring.clone()
-    scene.add(ring)
+    scene.add(assets.ring.clone())
+    scene.add(assets.bounds.clone())
+    for (let i = 0; i < 16; i++) {
+        const w = assets.wall.clone()
+        w.geometry = assets.wall.geometry.clone()
+        console.log();
+        if(i == 3) {
+            const uvs = w.geometry.attributes.uv
+            for (let j = 0; j < uvs.count; j++) {
+                var u = uvs.getX(i)
+                var v = uvs.getY(i)
+                u += 1/32
+                uvs.setXY( j, u, v );
+            }
+        }
+        w.geometry.computeBoundingBox()
+        w.geometry.computeBoundingSphere()
+        w.rotation.y = Math.PI/8 * i
+        scene.add(w)
+    }
     const light = new THREE.AmbientLight(0x404040)
     scene.add(light)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
@@ -234,15 +288,16 @@ export function* main () {
         yield* coro.wait(1)
         gameSched.add(beatsMechanic(gameSched, scene, assets.beat, sound, levelData))
     })
+
+    gameSched.add(renderCrosshair(scene, camera))
     
     // main loop
     while (true) {
         input.update()
         gizmos.reset()
         controls.update()
-        renderCrosshair(camera)
+        // renderCrosshair(camera)
         gameSched.tick()
-        drawBeatChains(_beats)
         gizmos.draw()
         renderer.render(scene, camera)
         yield

@@ -19,6 +19,7 @@ export function init (scene, options) {
         color: 0xffffff,
         vertexColors: THREE.VertexColors
     })
+    material.depthTest = false // hack
   
     const vertCount = options.size || 2000
   
@@ -31,6 +32,7 @@ export function init (scene, options) {
     colorsAttribute = geometry.getAttribute('color')
     
     gizmoObject = new THREE.LineSegments(geometry, material)
+    gizmoObject.renderOrder = 1 // hack
     gizmoObject.userData.size = vertCount
     scene.add(gizmoObject)
 }
