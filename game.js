@@ -255,7 +255,7 @@ export function* main () {
     const assets = collectChildren(gltf)
     scene.add(assets.ring.clone())
     scene.add(assets.bounds.clone())
-    for (let i = 0; i < 16; i++) {
+    for (let i = 0; i < 8; i++) {
         const w = assets.wall.clone()
         w.geometry = assets.wall.geometry.clone()
         console.log();
@@ -270,7 +270,7 @@ export function* main () {
         }
         w.geometry.computeBoundingBox()
         w.geometry.computeBoundingSphere()
-        w.rotation.y = Math.PI/8 * i
+        w.rotation.y = Math.PI/4 * i
         scene.add(w)
     }
     const light = new THREE.AmbientLight(0x404040)
