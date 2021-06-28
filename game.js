@@ -124,40 +124,60 @@ function drawBeatChains(beats) {
     }
 }
 
-function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
-    const beats = []
-
-    const startScale = 15
-    const removeScale = 0.25
+function* beatsMechanic (sched, scene, camera, arrowObject, sound, levelData=[]) {
+    const startDistance = 15
     const approachSpeed = 2 // unit per second
-    const timeToOne = (startScale-1) / approachSpeed
+    const timeToOne = (startDistance-1) / approachSpeed
     
-    let angle = 0
-    const levelData1 = levelData.map(({time, step}) => {
-        if(step)
-            angle += step * Math.PI / 8;
+    const levelData1 = levelData.map(({time, angle}) => {
         return { time:time - timeToOne, angle }
     })
     const levelData2 = levelData1.map((l, i) => {
         return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
     })
-    // const adjustedTimestamps = levelData.map(t => t.time - timeToZero)
-    // const delays = adjustedTimestamps.map((t, i) => t - adjustedTimestamps[i-1] || t)
     const playbackDelay = levelData2[0].delay < 0 ? Math.abs(levelData2[0].delay) : 0
-    console.log('[timeToZero]', timeToOne);
+    console.log('[playbackDelay]', playbackDelay);
+    console.log('[timeToOne]', timeToOne);
     console.log('[delays]', levelData2);
 
-    function* beatMovement (beat) {
-        // while(beat.scale.x > removeScale) {
-        while(beat.scale.x > 1 + input.now.audioTime.delta) {
-            let s = beat.scale.x - approachSpeed * input.now.audioTime.delta
-            beat.scale.set(s, s, s)
+    function* arrowMovement (arrow, angle) {
+        scene.add(arrow)
+        const forward = new THREE.Vector3()
+        let distance = startDistance;
+
+        camera.getWorldDirection(forward)
+        arrow.position.copy(forward.normalize().multiplyScalar(startDistance))
+        arrow.material = arrow.material.clone()
+        arrow.material.wireframe = true
+        
+        while(distance > 1 + input.now.audioTime.delta) {
+            // TODO camera forward could be in input
+            camera.getWorldDirection(forward)
+            const goal = forward.normalize().multiplyScalar(distance)
+            arrow.position.lerp(goal, (1 - distance / startDistance) * 0.75)
+            // arrow.position.copy(goal)
+            arrow.lookAt(camera.position)
+            // arrow.rotation.z = camera.rotation.z + Math.PI/2 * angle
+            arrow.rotation.copy(camera.rotation)
+            arrow.rotation.z += Math.PI/2 * angle
+            distance -= input.now.audioTime.delta
             yield
         }
 
-        beat.scale.set(1, 1, 1)
-        yield* coro.wait(1)
-        scene.remove(beat)
+        arrow.material.wireframe = false
+
+        yield* coro.waitFirst(
+            [coro.wait(0.25),
+             function* () {
+                while(true) {
+                    camera.getWorldDirection(forward)
+                    arrow.position.copy(forward.normalize())
+                    arrow.lookAt(camera.position)
+                    arrow.rotation.z = camera.rotation.z + Math.PI/2 * angle
+                    yield
+                }
+             }])
+        scene.remove(arrow)
     }
 
     sched.add(function* () {
@@ -165,18 +185,10 @@ function* beatsMechanic (sched, scene, beatObject, sound, levelData=[]) {
         sound.play()
     })
 
-    // let angle = 0
-    let prev = null
-
     for (const l of levelData2) {
         yield* coro.wait(l.delay)
-        const beat = beatObject.clone()
-        beat.scale.set(startScale, startScale, startScale)
-        beats.push(beat)
-        beat.rotation.y = l.angle
-        scene.add(beat)
-        sched.add(beatMovement(beat))
-        prev = beat
+        const arrow = arrowObject.clone()
+        sched.add(arrowMovement(arrow, l.angle))
     }
 }
 
@@ -188,11 +200,12 @@ const onMobie = navigator.userAgent.match(/Android|iPhone/)
  */
 function initScene () {
     const renderer = new THREE.WebGLRenderer({ antialias: false })
-    const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.1, 1100)
+    const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.01, 1100)
     if(!onMobie)
         camera.position.y += 0.5
     const controls = onMobie ? new DeviceOrientationControls(camera) : new OrbitControls(camera, renderer.domElement)
     const scene = new THREE.Scene()
+    scene.fog = new THREE.Fog(0, 0.1, 15)
 
     // const loader = new THREE.TextureLoader()
     // const texture = loader.load('prototype-background.png', () => {
@@ -251,28 +264,9 @@ export function* main () {
 
     // load geometry
     startButton.textContent = "Loading Geometry..."
-    const gltf = yield* waitLoadGltf('objects/ring2.glb')
+    const gltf = yield* waitLoadGltf('objects/relative.glb')
+    // scene.add(gltf);
     const assets = collectChildren(gltf)
-    scene.add(assets.ring.clone())
-    scene.add(assets.bounds.clone())
-    for (let i = 0; i < 8; i++) {
-        const w = assets.wall.clone()
-        w.geometry = assets.wall.geometry.clone()
-        console.log();
-        if(i == 3) {
-            const uvs = w.geometry.attributes.uv
-            for (let j = 0; j < uvs.count; j++) {
-                var u = uvs.getX(i)
-                var v = uvs.getY(i)
-                u += 1/32
-                uvs.setXY( j, u, v );
-            }
-        }
-        w.geometry.computeBoundingBox()
-        w.geometry.computeBoundingSphere()
-        w.rotation.y = Math.PI/4 * i
-        scene.add(w)
-    }
     const light = new THREE.AmbientLight(0x404040)
     scene.add(light)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
@@ -286,10 +280,10 @@ export function* main () {
     // schedule mechanic
     gameSched.add(function* () {
         yield* coro.wait(1)
-        gameSched.add(beatsMechanic(gameSched, scene, assets.beat, sound, levelData))
+        gameSched.add(beatsMechanic(gameSched, scene, camera, assets.arrow, sound, levelData))
     })
 
-    gameSched.add(renderCrosshair(scene, camera))
+    // gameSched.add(renderCrosshair(scene, camera))
     
     // main loop
     while (true) {
