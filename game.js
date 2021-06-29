@@ -129,13 +129,17 @@ function* beatsMechanic (sched, scene, camera, arrowObject, sound, levelData=[])
     const approachSpeed = 2 // unit per second
     const timeToOne = (startDistance-1) / approachSpeed
     
+    let a = 0
+
     const levelData1 = levelData.map(({time, angle}) => {
-        return { time:time - timeToOne, angle }
+        a += Math.floor(Math.random() * 8)
+        return { time:time - timeToOne, angle:a }
     })
     const levelData2 = levelData1.map((l, i) => {
         return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
     })
     const playbackDelay = levelData2[0].delay < 0 ? Math.abs(levelData2[0].delay) : 0
+    console.log('[levelData2[0].delay < 0]', levelData2[0].delay < 0, levelData2[0].delay );
     console.log('[playbackDelay]', playbackDelay);
     console.log('[timeToOne]', timeToOne);
     console.log('[delays]', levelData2);
@@ -154,13 +158,13 @@ function* beatsMechanic (sched, scene, camera, arrowObject, sound, levelData=[])
             // TODO camera forward could be in input
             camera.getWorldDirection(forward)
             const goal = forward.normalize().multiplyScalar(distance)
-            arrow.position.lerp(goal, (1 - distance / startDistance) * 0.75)
+            arrow.position.lerp(goal, 1)//(1 - distance / startDistance) * 0.75)
             // arrow.position.copy(goal)
             arrow.lookAt(camera.position)
             // arrow.rotation.z = camera.rotation.z + Math.PI/2 * angle
             arrow.rotation.copy(camera.rotation)
             arrow.rotation.z += Math.PI/2 * angle
-            distance -= input.now.audioTime.delta
+            distance -= input.now.audioTime.delta * approachSpeed
             yield
         }
 
@@ -255,9 +259,9 @@ export function* main () {
     // load audio
     audio.init(camera, listener)
     startButton.textContent = "Loading Audio..."
-    const audioBuffers = yield* audio.loadSounds('sounds/coin.wav', 'audio/music/bpm73.mp3')
+    const audioBuffers = yield* audio.loadSounds('sounds/coin.wav', 'audio/music/metro.mp3')
     const sound = new THREE.Audio(listener)
-    sound.setBuffer(audioBuffers['audio/music/bpm73.mp3'])
+    sound.setBuffer(audioBuffers['audio/music/metro.mp3'])
     sound.setLoop(false)
     sound.setVolume(1)
     input.inputPipeline.push(audioTime(sound)) // ???
