@@ -44,6 +44,32 @@ function audioTime(audio) {
         return { now, delta }
     }
 }
+// https://stackoverflow.com/a/2007279
+function angleDifference(x, y) {
+    return Math.atan2(Math.sin(x-y), Math.cos(x-y))
+}
+
+function cameraEuler(camera) {
+    return function cameraEuler(_, prev) {
+        const now = camera.rotation.clone()
+        const delta = new THREE.Euler()
+        if(prev?.cameraEuler)
+            delta.set( angleDifference(now.x, prev.cameraEuler.now.x),
+                       angleDifference(now.y, prev.cameraEuler.now.y),
+                       angleDifference(now.z, prev.cameraEuler.now.z) )
+        
+        return { now, delta }
+    }
+}
+
+const threshold = 0.1
+function direction(input) {
+    const right = input.cameraEuler.delta.y < -threshold
+    const left = input.cameraEuler.delta.y >= threshold
+    const down = input.cameraEuler.delta.x < -threshold
+    const up = input.cameraEuler.delta.x >= threshold
+    return { left, right, up, down }
+}
 
 function highlightWall(wall, index, size) {
     const uvs = wall.geometry.attributes.uv
@@ -76,7 +102,6 @@ function* renderCrosshair (scene, camera) {
     while(true) {
         const forward = new THREE.Vector3()
         camera.getWorldDirection(forward)
-        forward.normalize()
 
         for (const wall of walls) {
             highlightWall(wall, 1, 16)
@@ -264,7 +289,9 @@ export function* main () {
     sound.setBuffer(audioBuffers['audio/music/metro.mp3'])
     sound.setLoop(false)
     sound.setVolume(1)
-    input.inputPipeline.push(audioTime(sound)) // ???
+    input.inputPipeline.push(audioTime(sound))
+    input.inputPipeline.push(cameraEuler(camera))
+    input.inputPipeline.push(direction)
 
     // load geometry
     startButton.textContent = "Loading Geometry..."
