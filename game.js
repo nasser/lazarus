@@ -71,56 +71,6 @@ function direction(input) {
     return { left, right, up, down }
 }
 
-function highlightWall(wall, index, size) {
-    const uvs = wall.geometry.attributes.uv
-    const u = index/size + 1/(size*2)
-    for (let i = 0; i < uvs.count; i++) {
-        const v = uvs.getY(i)
-        uvs.setXY( i, u, v );
-    }
-    uvs.needsUpdate = true
-}
-
-function gizmoCross (center) {
-    gizmos.line(center, center.clone().add(new THREE.Vector3(.1, 0, 0)))
-    gizmos.line(center, center.clone().add(new THREE.Vector3(-.1, 0, 0)))
-    gizmos.line(center, center.clone().add(new THREE.Vector3(0, 0, .1)))
-    gizmos.line(center, center.clone().add(new THREE.Vector3(0, 0, -.1)))
-    gizmos.line(center, center.clone().add(new THREE.Vector3(0, .1, 0)))
-    gizmos.line(center, center.clone().add(new THREE.Vector3(0, -.1, 0)))
-}
-
-function* renderCrosshair (scene, camera) {
-    const raycaster = new THREE.Raycaster();
-    const origin = new THREE.Vector3(0, 0, 0)
-    const walls = scene.children.filter(o => o.name === 'wall')
-    for (const wall of walls) {
-        console.log(wall.geometry.boundingSphere);
-    }
-
-    // assumes camera is at origin
-    while(true) {
-        const forward = new THREE.Vector3()
-        camera.getWorldDirection(forward)
-
-        for (const wall of walls) {
-            highlightWall(wall, 1, 16)
-        }
-        raycaster.set( origin, forward );
-        // raycaster.setFromCamera( new THREE.Vector2(.5,.5), camera );
-        const intersects = raycaster.intersectObjects( walls );
-        for (const { object } of intersects) {
-            highlightWall(object, 6, 16)
-        }
-
-        forward.multiplyScalar(2)
-        gizmoCross(forward)
-
-
-        yield
-    }
-}
-
 /**
  * @param {THREE.Object3D} obj the object to traverse
  * @returns an object that maps child names to children
@@ -135,42 +85,27 @@ function collectChildren (obj) {
     return children
 }
 
-function drawBeatChains(beats) {
-    for (let i = 0; i < beats.length-1; i++) {
-        const a = beats[i]
-        const b = beats[i+1]
-        a.geometry.computeBoundingSphere()
-        b.geometry.computeBoundingSphere()
-        let aa = a.geometry.boundingSphere.center.clone()
-        let bb = b.geometry.boundingSphere.center.clone()
-        aa = a.localToWorld(aa)
-        bb = b.localToWorld(bb)
-        gizmos.line(aa, bb)
-    }
-}
-
-function* beatsMechanic (sched, scene, camera, arrowObject, sound, levelData=[]) {
+function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, sound, levelData=[]) {
     const startDistance = 15
     const approachSpeed = 2 // unit per second
     const timeToOne = (startDistance-1) / approachSpeed
     
     let a = 0
 
-    const levelData1 = levelData.map(({time, angle}) => {
+    const levelData1 = levelData.map(({time }) => {
         a += Math.floor(Math.random() * 8)
-        return { time:time - timeToOne, angle:a }
+        return { time:time - timeToOne, angle:a, duration:1 }
     })
     const levelData2 = levelData1.map((l, i) => {
         return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
     })
     const playbackDelay = levelData2[0].delay < 0 ? Math.abs(levelData2[0].delay) : 0
-    console.log('[levelData2[0].delay < 0]', levelData2[0].delay < 0, levelData2[0].delay );
-    console.log('[playbackDelay]', playbackDelay);
-    console.log('[timeToOne]', timeToOne);
-    console.log('[delays]', levelData2);
-
-    function* arrowMovement (arrow, angle) {
+    function* arrowMovement (arrowPrototype, data) {
+        const arrow = arrowPrototype.clone()
+        const trail = trailPrototype.clone()
+        trail.scale.z = data.duration
         scene.add(arrow)
+        arrow.add(trail)
         const forward = new THREE.Vector3()
         let distance = startDistance;
 
@@ -186,26 +121,26 @@ function* beatsMechanic (sched, scene, camera, arrowObject, sound, levelData=[])
             arrow.position.lerp(goal, 1)//(1 - distance / startDistance) * 0.75)
             // arrow.position.copy(goal)
             arrow.lookAt(camera.position)
-            // arrow.rotation.z = camera.rotation.z + Math.PI/2 * angle
+            // arrow.rotation.z = camera.rotation.z + Math.PI/2 * data.angle
             arrow.rotation.copy(camera.rotation)
-            arrow.rotation.z += Math.PI/2 * angle
+            arrow.rotation.z += Math.PI/2 * data.angle
             distance -= input.now.audioTime.delta * approachSpeed
             yield
         }
 
         arrow.material.wireframe = false
+        let duration = data.duration
 
-        yield* coro.waitFirst(
-            [coro.wait(0.25),
-             function* () {
-                while(true) {
-                    camera.getWorldDirection(forward)
-                    arrow.position.copy(forward.normalize())
-                    arrow.lookAt(camera.position)
-                    arrow.rotation.z = camera.rotation.z + Math.PI/2 * angle
-                    yield
-                }
-             }])
+        while(duration > 0) {
+            duration -= input.now.audioTime.delta
+            trail.scale.z = duration
+            camera.getWorldDirection(forward)
+            arrow.position.copy(forward.normalize())
+            arrow.lookAt(camera.position)
+            arrow.rotation.z = camera.rotation.z + Math.PI/2 * data.angle
+            yield
+        }
+
         scene.remove(arrow)
     }
 
@@ -216,8 +151,7 @@ function* beatsMechanic (sched, scene, camera, arrowObject, sound, levelData=[])
 
     for (const l of levelData2) {
         yield* coro.wait(l.delay)
-        const arrow = arrowObject.clone()
-        sched.add(arrowMovement(arrow, l.angle))
+        sched.add(arrowMovement(arrowObject, l))
     }
 }
 
@@ -311,7 +245,7 @@ export function* main () {
     // schedule mechanic
     gameSched.add(function* () {
         yield* coro.wait(1)
-        gameSched.add(beatsMechanic(gameSched, scene, camera, assets.arrow, sound, levelData))
+        gameSched.add(beatsMechanic(gameSched, scene, camera, assets.sustain, assets.sustain_trail, sound, levelData))
     })
 
     // gameSched.add(renderCrosshair(scene, camera))
