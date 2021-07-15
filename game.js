@@ -62,7 +62,7 @@ function cameraEuler(camera) {
     }
 }
 
-const threshold = 0.1
+const threshold = 0.05
 function direction(input) {
     const right = input.cameraEuler.delta.y < -threshold
     const left = input.cameraEuler.delta.y >= threshold
@@ -197,6 +197,19 @@ function initScene () {
     return { renderer, scene, camera, controls }
 }
 
+function* directionIndicator(canvas) {
+    const onStyle = "10px solid yellow"
+    const offStyle = "10px solid black"
+    
+    while(true) {
+        canvas.style.borderLeft = input.now.direction.left ? onStyle : offStyle
+        canvas.style.borderRight = input.now.direction.right ? onStyle : offStyle
+        canvas.style.borderTop = input.now.direction.up ? onStyle : offStyle
+        canvas.style.borderBottom = input.now.direction.down ? onStyle : offStyle
+        yield
+    }
+}
+
 export function* main () {
     // wait for interaction and init scene
     const overlay = document.getElementById('overlay')
@@ -248,14 +261,14 @@ export function* main () {
         gameSched.add(beatsMechanic(gameSched, scene, camera, assets.sustain, assets.sustain_trail, sound, levelData))
     })
 
-    // gameSched.add(renderCrosshair(scene, camera))
-    
+    renderer.domElement.style.boxSizing = "border-box";
+    gameSched.add(directionIndicator(renderer.domElement))
+
     // main loop
     while (true) {
         input.update()
         gizmos.reset()
         controls.update()
-        // renderCrosshair(camera)
         gameSched.tick()
         gizmos.draw()
         renderer.render(scene, camera)
