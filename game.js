@@ -90,11 +90,10 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
     const approachSpeed = 2 // unit per second
     const timeToOne = (startDistance-1) / approachSpeed
     
-    let a = 0
-
+    let angle = 0
     const levelData1 = levelData.map(({time }) => {
-        a += Math.floor(Math.random() * 8)
-        return { time:time - timeToOne, angle:a, duration:1 }
+        angle = (angle + 1) % 4
+        return { time:time - timeToOne, angle, duration:.25 }
     })
     const levelData2 = levelData1.map((l, i) => {
         return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
@@ -130,8 +129,14 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
 
         arrow.material.wireframe = false
         let duration = data.duration
+        let hitDuration = null
+        const validDirection = ["right", "up", "left", "down"][data.angle]
 
         while(duration > 0) {
+            if(input.now.direction[validDirection] && hitDuration === null) {
+                hitDuration = duration
+                debug.log('hit', validDirection, hitDuration / data.duration);
+            }
             duration -= input.now.audioTime.delta
             trail.scale.z = duration
             camera.getWorldDirection(forward)
@@ -139,6 +144,10 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
             arrow.lookAt(camera.position)
             arrow.rotation.z = camera.rotation.z + Math.PI/2 * data.angle
             yield
+        }
+
+        if(hitDuration == null) {
+            debug.log('miss', validDirection);
         }
 
         scene.remove(arrow)
@@ -258,7 +267,7 @@ export function* main () {
     // schedule mechanic
     gameSched.add(function* () {
         yield* coro.wait(1)
-        gameSched.add(beatsMechanic(gameSched, scene, camera, assets.sustain, assets.sustain_trail, sound, levelData))
+        gameSched.add(beatsMechanic(gameSched, scene, camera, assets.beat, assets.beat_trail, sound, levelData))
     })
 
     renderer.domElement.style.boxSizing = "border-box";
