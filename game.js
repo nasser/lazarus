@@ -129,13 +129,25 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
 
         arrow.material.wireframe = false
         let duration = data.duration
-        let hitDuration = null
+        let score = null
         const validDirection = ["right", "up", "left", "down"][data.angle]
 
         while(duration > 0) {
-            if(input.now.direction[validDirection] && hitDuration === null) {
-                hitDuration = duration
-                debug.alert('HIT')
+            if(input.now.direction[validDirection] && score === null) {
+                score = duration / data.duration
+                if(score > 0.9) {
+                    debug.alert('PERFECT')
+                    
+                } else if(score > 0.8) {
+                    debug.alert('GREAT')
+
+                } else if(score > 0.6) {
+                    debug.alert('GOOD')
+
+                } else {
+                    debug.alert('OK')
+                    
+                }
             }
             duration -= input.now.audioTime.delta
             trail.scale.z = duration
@@ -146,7 +158,7 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
             yield
         }
 
-        if(hitDuration == null) {
+        if(score == null) {
             debug.alert('MISSED')
         }
 
