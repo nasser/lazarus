@@ -1,9 +1,13 @@
-let element
+let logElement
+let alertElement
 
 export function init () {
-    element = document.createElement("div")
-    element.id = "debug"
-    document.body.appendChild(element)
+    logElement = document.createElement("div")
+    logElement.id = "debug"
+    document.body.appendChild(logElement)
+    alertElement = document.createElement("div")
+    alertElement.id = "alert"
+    document.body.appendChild(alertElement)
 }
 
 export function log (...args) {
@@ -11,7 +15,7 @@ export function log (...args) {
     const message = args.join(" ")
     const code = document.createElement("code")
     code.textContent = message
-    element.appendChild(code)
+    logElement.appendChild(code)
 }
 
 export function logUncaughtErrors () {
@@ -22,3 +26,12 @@ export function logUncaughtErrors () {
         }
     }    
 }
+
+export function alert(...args) {
+    const message = args.join(" ")
+    alertElement.textContent = message
+    alertElement.classList.add('changed')
+    setTimeout(_ => alertElement.classList.remove('changed'), 10)
+}
+
+window.aalert = alert

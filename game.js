@@ -135,7 +135,7 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
         while(duration > 0) {
             if(input.now.direction[validDirection] && hitDuration === null) {
                 hitDuration = duration
-                debug.log('hit', validDirection, hitDuration / data.duration);
+                debug.alert('HIT')
             }
             duration -= input.now.audioTime.delta
             trail.scale.z = duration
@@ -147,7 +147,7 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
         }
 
         if(hitDuration == null) {
-            debug.log('miss', validDirection);
+            debug.alert('MISSED')
         }
 
         scene.remove(arrow)
