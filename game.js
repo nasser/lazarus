@@ -38,8 +38,21 @@ const input = new Input([
  * @returns an input function returning { now, delta } based on audio time
  */
 function audioTime(audio) {
+    let startTime = null
+    let playhead = 0
+    let accumulated = 0
+    let playing = false
     return function audioTime(_, prev) {
-        let now = audio.context.currentTime
+        if(!playing && audio.isPlaying) {
+            startTime = audio.context.currentTime
+        } else if(playing && !audio.isPlaying) {
+            accumulated = playhead
+        }
+        playing = audio.isPlaying;
+        if(playing)
+            playhead = accumulated + audio.context.currentTime - startTime
+        
+        let now = playhead
         let delta = !prev ? 0 : now - prev.audioTime.now;
         return { now, delta }
     }
