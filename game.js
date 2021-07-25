@@ -240,6 +240,7 @@ export function* main () {
     let listener = null
     let renderer, camera, scene, controls
     yield* waitEvent(startButton, 'click', () => {
+        document.body.requestFullscreen()
         listener = audio.initListener()
         const i = initScene()
         renderer = i.renderer
