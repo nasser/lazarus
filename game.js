@@ -106,9 +106,11 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
     let angle = 0
     let bb = 0
     const _levelData = levelData.map(({time }) => {
-        angle = (angle + 1) % 4
+        angle = Math.floor(Math.random() * 4)// (angle + 1) % 4
         return { time:(bb++) * spb, angle, duration:.25 }
     })
+
+    let totalScore = 0
     
     function* arrowMovement (arrowPrototype, data) {
         const arrow = arrowPrototype.clone()
@@ -142,15 +144,19 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
             if(input.now.direction[validDirection] && score === null) {
                 score = duration / data.duration
                 if(score > 0.9) {
+                    totalScore += 1
                     debug.alert('PERFECT')
                     
                 } else if(score > 0.8) {
+                    totalScore += 0.8
                     debug.alert('GREAT')
 
                 } else if(score > 0.6) {
+                    totalScore += 0.6
                     debug.alert('GOOD')
 
                 } else {
+                    totalScore += 0.5
                     debug.alert('OK')
                     
                 }
@@ -173,8 +179,14 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
 
     sound.play()
 
-    for (const l of _levelData) {
-        sched.add(arrowMovement(arrowObject, l))
+    yield* coro.waitAll(_levelData.map(l => arrowMovement(arrowObject, l)))
+
+    const final = totalScore / _levelData.length * 100
+
+    while(true) {
+        debug.alert(`${final.toFixed(2)}%`)
+        yield* coro.wait(1)
+        yield
     }
 }
 
