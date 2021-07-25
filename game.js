@@ -99,19 +99,17 @@ function collectChildren (obj) {
 }
 
 function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, sound, levelData=[]) {
-    const startDistance = 15
-    const approachSpeed = 2 // unit per second
-    const timeToOne = (startDistance-1) / approachSpeed
+    const bpm = 80
+    const bps = bpm / 60
+    const spb = 1 / bps
     
     let angle = 0
-    const levelData1 = levelData.map(({time }) => {
+    let bb = 0
+    const _levelData = levelData.map(({time }) => {
         angle = (angle + 1) % 4
-        return { time:time - timeToOne, angle, duration:.25 }
+        return { time:(bb++) * spb, angle, duration:.25 }
     })
-    const levelData2 = levelData1.map((l, i) => {
-        return { ...l, delay:l.time - levelData1[i-1]?.time || l.time }
-    })
-    const playbackDelay = levelData2[0].delay < 0 ? Math.abs(levelData2[0].delay) : 0
+    
     function* arrowMovement (arrowPrototype, data) {
         const arrow = arrowPrototype.clone()
         const trail = trailPrototype.clone()
@@ -119,24 +117,19 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
         scene.add(arrow)
         arrow.add(trail)
         const forward = new THREE.Vector3()
-        let distance = startDistance;
 
-        camera.getWorldDirection(forward)
-        arrow.position.copy(forward.normalize().multiplyScalar(startDistance))
         arrow.material = arrow.material.clone()
         arrow.material.wireframe = true
-        
-        while(distance > 1 + input.now.audioTime.delta) {
-            // TODO camera forward could be in input
+
+        while(input.now.audioTime.now < data.time) {
+            const distance = (1 - (input.now.audioTime.now - data.time))
             camera.getWorldDirection(forward)
             const goal = forward.normalize().multiplyScalar(distance)
             arrow.position.lerp(goal, 1)//(1 - distance / startDistance) * 0.75)
             // arrow.position.copy(goal)
             arrow.lookAt(camera.position)
-            // arrow.rotation.z = camera.rotation.z + Math.PI/2 * data.angle
             arrow.rotation.copy(camera.rotation)
             arrow.rotation.z += Math.PI/2 * data.angle
-            distance -= input.now.audioTime.delta * approachSpeed
             yield
         }
 
@@ -178,13 +171,9 @@ function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, soun
         scene.remove(arrow)
     }
 
-    sched.add(function* () {
-        yield* coro.wait(playbackDelay)
-        sound.play()
-    })
+    sound.play()
 
-    for (const l of levelData2) {
-        yield* coro.wait(l.delay)
+    for (const l of _levelData) {
         sched.add(arrowMovement(arrowObject, l))
     }
 }
@@ -273,6 +262,7 @@ export function* main () {
     input.inputPipeline.push(audioTime(sound))
     input.inputPipeline.push(cameraEuler(camera))
     input.inputPipeline.push(direction)
+    coro.setClock(_ => sound.context.currentTime)
 
     // load geometry
     startButton.textContent = "Loading Geometry..."
