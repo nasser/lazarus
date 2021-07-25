@@ -279,6 +279,26 @@ export function* main () {
     // create local schedule for main mechanic
     const gameSched = new coro.Schedule()
 
+    // debug sync
+    scene.background = new THREE.Color(0, 0, 0)
+    const analyzer = sound.context.createAnalyser()
+    analyzer.fftSize = 2048
+    let bufferLength = analyzer.frequencyBinCount;
+    let dataArray = new Float32Array(bufferLength);
+    analyzer.getFloatTimeDomainData(dataArray);
+    sound.getOutput().connect(analyzer)
+
+    gameSched.add(function* () {
+        while(true) {
+            analyzer.getFloatTimeDomainData(dataArray);
+            const min = Math.min(...dataArray)
+            const max = Math.max(...dataArray)
+            const amp = Math.min(1, Math.abs(max - min))
+            scene.background.r = amp
+            yield
+        }
+    })
+
     // schedule mechanic
     gameSched.add(function* () {
         yield* coro.wait(1)
