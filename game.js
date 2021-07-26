@@ -7,9 +7,29 @@ import * as debug from './debug.js'
 import * as gizmos from './gizmos.js'
 import * as audio from './audio.js'
 import { Input, time } from './input.js'
-import { levelData } from './level.js'
 
 const gltfLoader = new GLTFLoader()
+
+function* waitFetch(url) {
+    let result = null
+    fetch(url)
+        .then(response => response.text())
+        .then(text => result = text)
+    
+    while(!result) yield
+    return result
+}
+
+function parseLevelData(text) {
+    return text.trim()
+                .split("\n")
+                .map(line => line.trim().split("\t"))
+                .map(([from, to, direction]) => {
+                    if(from === to)
+                        return { type: "beat", time: parseFloat(from), direction }
+                    return { type: "sustain", from: parseFloat(from), to:parseFloat(to), direction }
+                })
+}
 
 function* waitLoadGltf (url) {
     let value = null
@@ -43,14 +63,15 @@ function audioTime(audio) {
     let accumulated = 0
     let playing = false
     return function audioTime(_, prev) {
-        if(!playing && audio.isPlaying) {
-            startTime = audio.context.currentTime
-        } else if(playing && !audio.isPlaying) {
-            accumulated = playhead
-        }
-        playing = audio.isPlaying;
-        if(playing)
-            playhead = accumulated + audio.context.currentTime - startTime
+        playhead = audio.currentTime
+        // if(!playing && audio.isPlaying) {
+        //     startTime = audio.currentTime
+        // } else if(playing && !audio.isPlaying) {
+        //     accumulated = playhead
+        // }
+        // playing = audio.isPlaying;
+        // if(playing)
+        //     playhead = accumulated + audio.currentTime - startTime
         
         let now = playhead
         let delta = !prev ? 0 : now - prev.audioTime.now;
@@ -98,90 +119,123 @@ function collectChildren (obj) {
     return children
 }
 
-function* beatsMechanic (sched, scene, camera, arrowObject, trailPrototype, sound, levelData=[]) {
-    const bpm = 80
-    const bps = bpm / 60
-    const spb = 1 / bps
-    
-    let angle = 0
-    let bb = 0
-    const _levelData = levelData.map(({time }) => {
-        angle = Math.floor(Math.random() * 4)// (angle + 1) % 4
-        return { time:(bb++) * spb, angle, duration:.25 }
-    })
-
+function* beatsMechanic (scene, camera, assets, sound, levelData) {
     let totalScore = 0
+    const directionToAngle = { right:0, up:1, left:2, down:3 }
     
-    function* arrowMovement (arrowPrototype, data) {
-        const arrow = arrowPrototype.clone()
-        const trail = trailPrototype.clone()
-        trail.scale.z = data.duration
+    function* single (mainGeo, trailGeo, start, duration, direction, scoring) {
+        const arrow = mainGeo.clone()
+        const trail = trailGeo.clone()
+        trail.scale.z = duration
         scene.add(arrow)
         arrow.add(trail)
         const forward = new THREE.Vector3()
+        const angle = Math.PI/2 * directionToAngle[direction]
 
         arrow.material = arrow.material.clone()
         arrow.material.wireframe = true
 
-        while(input.now.audioTime.now < data.time) {
-            const distance = (1 - (input.now.audioTime.now - data.time))
+        while(input.now.audioTime.now < start) {
+            const distance = (1 - (input.now.audioTime.now - start))
             camera.getWorldDirection(forward)
             const goal = forward.normalize().multiplyScalar(distance)
-            arrow.position.lerp(goal, 1)//(1 - distance / startDistance) * 0.75)
-            // arrow.position.copy(goal)
+            // arrow.position.lerp(goal, 1)//(1 - distance / startDistance) * 0.75)
+            arrow.position.copy(goal)
             arrow.lookAt(camera.position)
             arrow.rotation.copy(camera.rotation)
-            arrow.rotation.z += Math.PI/2 * data.angle
+            arrow.rotation.z += angle
             yield
         }
 
         arrow.material.wireframe = false
-        let duration = data.duration
+        const validDirection = direction.toLowerCase()
+        const originalDuration = duration
         let score = null
-        const validDirection = ["right", "up", "left", "down"][data.angle]
 
         while(duration > 0) {
-            if(input.now.direction[validDirection] && score === null) {
-                score = duration / data.duration
-                if(score > 0.9) {
-                    totalScore += 1
-                    debug.alert('PERFECT')
-                    
-                } else if(score > 0.8) {
-                    totalScore += 0.8
-                    debug.alert('GREAT')
+            if(!score)
+                score = scoring(validDirection, duration, originalDuration)
 
-                } else if(score > 0.6) {
-                    totalScore += 0.6
-                    debug.alert('GOOD')
-
-                } else {
-                    totalScore += 0.5
-                    debug.alert('OK')
-                    
-                }
-            }
             duration -= input.now.audioTime.delta
             trail.scale.z = duration
             camera.getWorldDirection(forward)
             arrow.position.copy(forward.normalize())
             arrow.lookAt(camera.position)
-            arrow.rotation.z = camera.rotation.z + Math.PI/2 * data.angle
+            arrow.rotation.z = camera.rotation.z + angle
             yield
         }
 
-        if(score == null) {
+        if(!score)
+            score = scoring(validDirection, 0, originalDuration)
+
+        if(!score) {
             debug.alert('MISSED')
+        } else {
+            totalScore += score
         }
 
         scene.remove(arrow)
     }
 
+    function accuracyToScore(accuracy) {
+        if(accuracy > 0.9) {
+            debug.alert('PERFECT')
+            return 1
+            
+        } else if(accuracy > 0.8) {
+            debug.alert('GREAT')
+            return 0.8
+
+        } else if(accuracy > 0.6) {
+            debug.alert('GOOD')
+            return 0.6
+
+        } else {
+            debug.alert('OK')
+            return 0.5
+            
+        }
+
+    }
+
+    function scoringBeat(direction, duration, originalDuration) {
+        if(input.now.direction[direction]) {
+            return accuracyToScore(duration / originalDuration)
+
+        }
+    }
+
+    function scoringSustain() {
+        let totalFrames = 0
+        let goodFrames = 0
+        return function(direction, duration, originalDuration) {
+            if(duration === 0) {
+                return accuracyToScore(goodFrames / totalFrames)
+
+            } else {
+                totalFrames += 1
+                if(input.now.direction[direction]) {
+                    goodFrames += 1
+                }
+            }
+
+        }
+    }
+        
+
+    function element(l) {
+        if(l.type === "beat")
+            return single(assets.beat, assets.beat_trail, l.time, .25, l.direction, scoringBeat)
+        else if(l.type === "sustain")
+            return single(assets.sustain, assets.sustain_trail, l.from, l.to - l.from, l.direction, scoringSustain())
+    }
+
+    console.log('play', sound);
     sound.play()
 
-    yield* coro.waitAll(_levelData.map(l => arrowMovement(arrowObject, l)))
+    yield* coro.waitAll(levelData.map(element))
 
-    const final = totalScore / _levelData.length * 100
+    const final = totalScore / levelData.length * 100
 
     while(true) {
         debug.alert(`${final.toFixed(2)}%`)
@@ -249,33 +303,32 @@ export function* main () {
     // wait for interaction and init scene
     const overlay = document.getElementById('overlay')
     const startButton = document.getElementById('startButton')
-    let listener = null
+    let audioBuffers = null
     let renderer, camera, scene, controls
     yield* waitEvent(startButton, 'click', () => {
-        document.body.requestFullscreen()
-        listener = audio.initListener()
+        if(onMobie && document.body.requestFullscreen)
+            document.body.requestFullscreen()
+        // listener = audio.initListener()
         const i = initScene()
         renderer = i.renderer
         camera = i.camera
         scene = i.scene
         controls = i.controls
+        audioBuffers = audio.loadSounds('audio/music/djfear-hummie.mp3')
     })
     startButton.setAttribute('disabled', true)
 
     gizmos.init(scene)
     
     // load audio
-    audio.init(camera, listener)
+    // audio.init(camera, listener)
     startButton.textContent = "Loading Audio..."
-    const audioBuffers = yield* audio.loadSounds('sounds/coin.wav', 'audio/music/metro.mp3')
-    const sound = new THREE.Audio(listener)
-    sound.setBuffer(audioBuffers['audio/music/metro.mp3'])
-    sound.setLoop(false)
-    sound.setVolume(1)
+    yield* audio.waitUntilAudioCanPlay();
+    const sound = audioBuffers['audio/music/djfear-hummie.mp3']
     input.inputPipeline.push(audioTime(sound))
     input.inputPipeline.push(cameraEuler(camera))
     input.inputPipeline.push(direction)
-    coro.setClock(_ => sound.context.currentTime)
+    // coro.setClock(_ => sound.currentTime)
 
     // load geometry
     startButton.textContent = "Loading Geometry..."
@@ -293,29 +346,31 @@ export function* main () {
     const gameSched = new coro.Schedule()
 
     // debug sync
-    scene.background = new THREE.Color(0, 0, 0)
-    const analyzer = sound.context.createAnalyser()
-    analyzer.fftSize = 2048
-    let bufferLength = analyzer.frequencyBinCount;
-    let dataArray = new Float32Array(bufferLength);
-    analyzer.getFloatTimeDomainData(dataArray);
-    sound.getOutput().connect(analyzer)
+    // scene.background = new THREE.Color(0, 0, 0)
+    // const analyzer = sound.context.createAnalyser()
+    // analyzer.fftSize = 2048
+    // let bufferLength = analyzer.frequencyBinCount;
+    // let dataArray = new Float32Array(bufferLength);
+    // analyzer.getFloatTimeDomainData(dataArray);
+    // sound.getOutput().connect(analyzer)
 
-    gameSched.add(function* () {
-        while(true) {
-            analyzer.getFloatTimeDomainData(dataArray);
-            const min = Math.min(...dataArray)
-            const max = Math.max(...dataArray)
-            const amp = Math.min(1, Math.abs(max - min))
-            scene.background.r = amp
-            yield
-        }
-    })
+    // gameSched.add(function* () {
+    //     while(true) {
+    //         analyzer.getFloatTimeDomainData(dataArray);
+    //         const min = Math.min(...dataArray)
+    //         const max = Math.max(...dataArray)
+    //         const amp = Math.min(1, Math.abs(max - min))
+    //         scene.background.r = amp
+    //         yield
+    //     }
+    // })
+
+    const levelData = parseLevelData(yield* waitFetch("Beats.txt"))
 
     // schedule mechanic
     gameSched.add(function* () {
         yield* coro.wait(1)
-        gameSched.add(beatsMechanic(gameSched, scene, camera, assets.beat, assets.beat_trail, sound, levelData))
+        gameSched.add(beatsMechanic(scene, camera, assets, sound, levelData))
     })
 
     renderer.domElement.style.boxSizing = "border-box";
