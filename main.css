@@ -1,3 +1,5 @@
+@import url('https://fonts.cdnfonts.com/css/konigsberg');
+
 html, body {
 	height: 100%;
 	width: 100%;
@@ -125,8 +127,9 @@ div.accel-debug {
 }
 
 #alert {
+	font-family: 'Königsberg', sans-serif;
 	width: 100%;
-    height: 100%;
+    height: 20%;
     color:  white;
     z-index: 1;
     display: flex;
@@ -136,7 +139,7 @@ div.accel-debug {
     top: 0;
     left: 0;
     flex-direction: column;
-	font-size: 2em;
+	font-size: 3em;
 	font-weight: bold;
 	text-align: center;
 	opacity: 0;
@@ -145,5 +148,30 @@ div.accel-debug {
 
 #alert.changed {
 	opacity: 1;
+	transition: 0s;
+}
+
+canvas {
+	border: 10px solid black;
+	transition: 0.5s;
+}
+
+canvas.indicate-left {
+	border-left: 10px solid white;
+	transition: 0s;
+}
+
+canvas.indicate-right {
+	border-right: 10px solid white;
+	transition: 0s;
+}
+
+canvas.indicate-top {
+	border-top: 10px solid white;
+	transition: 0s;
+}
+
+canvas.indicate-bottom {
+	border-bottom: 10px solid white;
 	transition: 0s;
 }

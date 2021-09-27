@@ -1,12 +1,17 @@
 import * as THREE from "https://cdn.jsdelivr.net/npm/three@0.124.0/build/three.module.js"
 import { DeviceOrientationControls } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/controls/DeviceOrientationControls.js'
 import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/controls/OrbitControls.js'
+import { EffectComposer } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/postprocessing/EffectComposer.js';
+import { RenderPass } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/postprocessing/UnrealBloomPass.js';
+
 import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.124.0/examples/jsm/loaders/GLTFLoader.js'
 import * as coro from 'https://cdn.jsdelivr.net/gh/nasser/ajeeb-coroutines@master/build/coroutines.esm.js'
 import * as debug from './debug.js'
 import * as gizmos from './gizmos.js'
 import * as audio from './audio.js'
 import { Input, time } from './input.js'
+import { finalPass } from './final-pass.js'
 
 const gltfLoader = new GLTFLoader()
 
@@ -119,9 +124,46 @@ function collectChildren (obj) {
     return children
 }
 
+const lerp = (x, y, a) => x * (1 - a) + y * a
+const invlerp = (x, y, a) => clamp((a - x) / (y - x))
+const clamp = (a, min = 0, max = 1) => Math.min(max, Math.max(min, a))
+const range = ( in_min, in_max, out_min, out_max, toLerp ) => clamp(lerp(out_min, out_max, invlerp(in_min, in_max, toLerp)), out_min, out_max)
+ 
 function* beatsMechanic (scene, camera, assets, sound, levelData) {
     let totalScore = 0
     const directionToAngle = { right:0, up:1, left:2, down:3 }
+    assets.judge.material.size = 4
+    const targets = []
+
+    debug.alert('3')
+    yield* coro.wait(1)
+    debug.alert('2')
+    yield* coro.wait(1)
+    debug.alert('1')
+    yield* coro.wait(1)
+    debug.alert('GO')    
+    
+    for (let i = 0; i < 4; i++) {
+        const target = assets.judge.clone()
+        targets.push(target)
+        scene.add(target)
+    }
+
+    function* positionTargets() {
+        while(true) {
+            for (let i = 0; i < 4; i++) {
+                const target = targets[i]
+                // target.rotation.x = Math.PI/2
+                // target.rotation.z = Math.PI/2 * i
+                camera.getWorldDirection(target.position)
+                target.position.normalize()
+                target.lookAt(camera.position)
+                target.rotation.copy(camera.rotation)
+                target.rotation.z += Math.PI/2 * i
+            }
+            yield
+        }
+    }
     
     function* single (mainGeo, trailGeo, start, duration, direction, scoring) {
         const arrow = mainGeo.clone()
@@ -130,17 +172,29 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
         scene.add(arrow)
         arrow.add(trail)
         const forward = new THREE.Vector3()
-        const angle = Math.PI/2 * directionToAngle[direction]
-
+        camera.getWorldDirection(forward)
+        const angle = Math.PI / 2 * directionToAngle[direction]
+        
         arrow.material = arrow.material.clone()
         arrow.material.wireframe = true
+        arrow.material.transparent = true
+        trail.material = trail.material.clone()
+        trail.material.transparent = true
+        arrow.position.copy(forward.normalize().multiplyScalar(50))
 
         while(input.now.audioTime.now < start) {
             const distance = (1 - (input.now.audioTime.now - start))
             camera.getWorldDirection(forward)
             const goal = forward.normalize().multiplyScalar(distance)
-            // arrow.position.lerp(goal, 1)//(1 - distance / startDistance) * 0.75)
-            arrow.position.copy(goal)
+            const tt = Math.pow(range(15, 0, 0.225, 1, distance), 2)
+            const uu = Math.pow(range(15, 0, 0, 1, distance), 2)
+            // fog distance
+            if(distance > 15)
+                arrow.position.copy(goal)
+            else
+                arrow.position.lerp(goal, tt)
+            arrow.material.opacity = uu
+            trail.material.opacity = uu
             arrow.lookAt(camera.position)
             arrow.rotation.copy(camera.rotation)
             arrow.rotation.z += angle
@@ -161,7 +215,8 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
             camera.getWorldDirection(forward)
             arrow.position.copy(forward.normalize())
             arrow.lookAt(camera.position)
-            arrow.rotation.z = camera.rotation.z + angle
+            arrow.rotation.copy(camera.rotation)
+            arrow.rotation.z += angle
             yield
         }
 
@@ -230,10 +285,9 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
             return single(assets.sustain, assets.sustain_trail, l.from, l.to - l.from, l.direction, scoringSustain())
     }
 
-    console.log('play', sound);
     sound.play()
 
-    yield* coro.waitAll(levelData.map(element))
+    yield* coro.waitFirst([positionTargets(), coro.waitAll(levelData.map(element))])
 
     const final = totalScore / levelData.length * 100
 
@@ -251,22 +305,24 @@ const onMobie = navigator.userAgent.match(/Android|iPhone/)
  * @returns initialized scene
  */
 function initScene () {
-    const renderer = new THREE.WebGLRenderer({ antialias: false })
+    const renderer = new THREE.WebGLRenderer({ alpha:false })
     const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.01, 1100)
     if(!onMobie)
         camera.position.y += 0.5
     const controls = onMobie ? new DeviceOrientationControls(camera) : new OrbitControls(camera, renderer.domElement)
     const scene = new THREE.Scene()
-    scene.fog = new THREE.Fog(0, 0.1, 15)
+    const bgscene = new THREE.Scene()
+    scene.background = null
+    // scene.fog = new THREE.Fog(0, 0.1, 15)
 
-    // const loader = new THREE.TextureLoader()
-    // const texture = loader.load('prototype-background.png', () => {
-    //     texture.magFilter = THREE.NearestFilter
-    //     texture.minFilter = THREE.NearestFilter
-    //     const rt = new THREE.WebGLCubeRenderTarget(texture.image.height)
-    //     rt.fromEquirectangularTexture(renderer, texture)
-    //     scene.background = rt
-    // })
+    const loader = new THREE.TextureLoader()
+    const texture = loader.load('bg02.png', () => {
+        texture.magFilter = THREE.NearestFilter
+        texture.minFilter = THREE.NearestFilter
+        const rt = new THREE.WebGLCubeRenderTarget(texture.image.height)
+        rt.fromEquirectangularTexture(renderer, texture)
+        bgscene.background = rt
+    })
 
     // const helperGeometry = new THREE.BoxGeometry(100, 100, 100, 4, 4, 4)
     // const helperMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true })
@@ -274,7 +330,10 @@ function initScene () {
     // scene.add(helper)
 
     renderer.setPixelRatio(window.devicePixelRatio)
+    renderer.setClearColor(0xff0000, 0)
     renderer.setSize(window.innerWidth, window.innerHeight)
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = Math.pow( 1.5, 4 ); // 1.5 might be too much
     document.body.appendChild(renderer.domElement)
 
     window.addEventListener('resize', function () {
@@ -283,18 +342,40 @@ function initScene () {
         renderer.setSize(window.innerWidth, window.innerHeight)
     })
 
-    return { renderer, scene, camera, controls }
+    const bgRenderPass = new RenderPass(bgscene, camera);
+
+    const renderPass = new RenderPass(scene, camera);
+
+    const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+    bloomPass.threshold = 0;
+    bloomPass.strength = 5;
+    bloomPass.radius = 0.25;
+
+    const bloomComposer = new EffectComposer( renderer );
+    bloomComposer.renderToScreen = false;
+    bloomComposer.addPass( renderPass );
+    bloomComposer.addPass(bloomPass);
+
+    const finalComposer = new EffectComposer(renderer);
+    finalComposer.addPass( bgRenderPass );
+    finalComposer.addPass( finalPass(bloomComposer.renderTarget2.texture) );
+
+    return { renderer, bloomComposer, finalComposer, scene, bgscene, camera, controls }
 }
 
 function* directionIndicator(canvas) {
     const onStyle = "10px solid yellow"
     const offStyle = "10px solid black"
     
-    while(true) {
-        canvas.style.borderLeft = input.now.direction.left ? onStyle : offStyle
-        canvas.style.borderRight = input.now.direction.right ? onStyle : offStyle
-        canvas.style.borderTop = input.now.direction.up ? onStyle : offStyle
-        canvas.style.borderBottom = input.now.direction.down ? onStyle : offStyle
+    while (true) {
+        input.now.direction.left ? canvas.classList.add("indicate-left") : canvas.classList.remove("indicate-left")
+        input.now.direction.right ? canvas.classList.add("indicate-right") : canvas.classList.remove("indicate-right")
+        input.now.direction.up ? canvas.classList.add("indicate-top") : canvas.classList.remove("indicate-top")
+        input.now.direction.down ? canvas.classList.add("indicate-bottom") : canvas.classList.remove("indicate-bottom")
+        // canvas.style.borderLeft = input.now.direction.left ? onStyle : offStyle
+        // canvas.style.borderRight = input.now.direction.right ? onStyle : offStyle
+        // canvas.style.borderTop = input.now.direction.up ? onStyle : offStyle
+        // canvas.style.borderBottom = input.now.direction.down ? onStyle : offStyle
         yield
     }
 }
@@ -304,7 +385,7 @@ export function* main () {
     const overlay = document.getElementById('overlay')
     const startButton = document.getElementById('startButton')
     let audioBuffers = null
-    let renderer, camera, scene, controls
+    let renderer, bloomComposer, finalComposer, camera, scene, controls
     yield* waitEvent(startButton, 'click', () => {
         if(onMobie && document.body.requestFullscreen)
             document.body.requestFullscreen()
@@ -314,6 +395,8 @@ export function* main () {
         camera = i.camera
         scene = i.scene
         controls = i.controls
+        bloomComposer = i.bloomComposer
+        finalComposer = i.finalComposer
         audioBuffers = audio.loadSounds('audio/music/djfear-hummie.mp3')
     })
     startButton.setAttribute('disabled', true)
@@ -335,6 +418,7 @@ export function* main () {
     const gltf = yield* waitLoadGltf('objects/relative.glb')
     // scene.add(gltf);
     const assets = collectChildren(gltf)
+    // scene.add(assets.background)
     const light = new THREE.AmbientLight(0x404040)
     scene.add(light)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
@@ -383,7 +467,8 @@ export function* main () {
         controls.update()
         gameSched.tick()
         gizmos.draw()
-        renderer.render(scene, camera)
+        bloomComposer.render();
+        finalComposer.render();
         yield
     }
 }
