@@ -25,11 +25,16 @@ function* waitFetch(url) {
     return result
 }
 
+function randomDirection() {
+    return ["up", "down", "left", "right"][Math.floor(Math.random() * 4)]
+}
+
 function parseLevelData(text) {
     return text.trim()
                 .split("\n")
                 .map(line => line.trim().split("\t"))
                 .map(([from, to, direction]) => {
+                    direction = direction == "x" ? randomDirection() : direction;
                     if(from === to)
                         return { type: "beat", time: parseFloat(from), direction }
                     return { type: "sustain", from: parseFloat(from), to:parseFloat(to), direction }
@@ -385,7 +390,7 @@ export function* main () {
     const overlay = document.getElementById('overlay')
     const startButton = document.getElementById('startButton')
     let audioBuffers = null
-    let renderer, bloomComposer, finalComposer, camera, scene, controls
+    let renderer, bloomComposer, finalComposer, camera, scene, bgscene, controls
     yield* waitEvent(startButton, 'click', () => {
         if(onMobie && document.body.requestFullscreen)
             document.body.requestFullscreen()
@@ -394,10 +399,11 @@ export function* main () {
         renderer = i.renderer
         camera = i.camera
         scene = i.scene
+        bgscene = i.bgscene
         controls = i.controls
         bloomComposer = i.bloomComposer
         finalComposer = i.finalComposer
-        audioBuffers = audio.loadSounds('audio/music/djfear-hummie.mp3')
+        audioBuffers = audio.loadSounds('audio/music/mario.mp3')
     })
     startButton.setAttribute('disabled', true)
 
@@ -407,7 +413,7 @@ export function* main () {
     // audio.init(camera, listener)
     startButton.textContent = "Loading Audio..."
     yield* audio.waitUntilAudioCanPlay();
-    const sound = audioBuffers['audio/music/djfear-hummie.mp3']
+    const sound = audioBuffers['audio/music/mario.mp3']
     input.inputPipeline.push(audioTime(sound))
     input.inputPipeline.push(cameraEuler(camera))
     input.inputPipeline.push(direction)
@@ -418,7 +424,10 @@ export function* main () {
     const gltf = yield* waitLoadGltf('objects/relative.glb')
     // scene.add(gltf);
     const assets = collectChildren(gltf)
-    // scene.add(assets.background)
+    const background = assets.background.clone()
+    bgscene.add(background)
+    background.rotation.y = Math.PI*2
+    background.rotation.x = Math.PI*2
     const light = new THREE.AmbientLight(0x404040)
     scene.add(light)
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
@@ -449,7 +458,7 @@ export function* main () {
     //     }
     // })
 
-    const levelData = parseLevelData(yield* waitFetch("Beats.txt"))
+    const levelData = parseLevelData(yield* waitFetch("mario.txt"))
 
     // schedule mechanic
     gameSched.add(function* () {
