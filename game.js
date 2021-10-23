@@ -439,13 +439,14 @@ export function* main () {
 
     function* drift(scene, asset, i, x, y, z) {
         const obj = asset.clone()
+        obj.material = obj.material.clone()
         obj.scale.set(i*.25, i*.25, i*.25)
         obj.material.transparent = true
         obj.material.blending = THREE.AdditiveBlending
-        obj.material.opacity = .125*i
         obj.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI)
         scene.add(obj)
         while (true) {
+            obj.material.opacity = .25 * i * (Math.sin(i * input.now.time.now * 0.3 + i * 0.1)/3+.5)
             obj.rotation.x += 0.001 * x
             obj.rotation.y += 0.001 * y
             obj.rotation.z += 0.001 * z
