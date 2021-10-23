@@ -295,12 +295,27 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
     yield* coro.waitFirst([positionTargets(), coro.waitAll(levelData.map(element))])
 
     const final = totalScore / levelData.length * 100
-
-    while(true) {
-        debug.alert(`${final.toFixed(2)}%`)
-        yield* coro.wait(1)
-        yield
+    let finalLabel
+    if(final > 0.9) {
+        finalLabel = 'EXCELLENT'
+    } else if(final > 0.8) {
+        finalLabel = 'AMAZING'
+    } else if(final > 0.6) {
+        finalLabel = 'PRETTY GOOD'
+    } else {
+        finalLabel = 'KEEP PRACTICING'
     }
+
+    yield* coro.waitFirst([
+        positionTargets(),
+        function* () {
+            while(true) {
+                debug.alert(`${final.toFixed(2)}% -- ${finalLabel}`)
+                yield* coro.wait(1)
+                yield
+            }
+        }
+    ])
 }
 
 const onMobie = navigator.userAgent.match(/Android|iPhone/)
@@ -426,6 +441,7 @@ export function* main () {
         const obj = asset.clone()
         obj.scale.set(i*.25, i*.25, i*.25)
         obj.material.transparent = true
+        obj.material.blending = THREE.AdditiveBlending
         obj.material.opacity = .125*i
         obj.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI)
         scene.add(obj)
@@ -437,6 +453,7 @@ export function* main () {
         }
     }
 
+    gameSched.add(drift(bgscene, assets.clouds, .08, 1, -2, 1))
     gameSched.add(drift(bgscene, assets.clouds, 1, 1, -2, 1))
     gameSched.add(drift(bgscene, assets.clouds, 2, 2, 1, -1))
     gameSched.add(drift(bgscene, assets.clouds, 3, -1, -1, 2))
