@@ -318,22 +318,6 @@ function initScene () {
     const scene = new THREE.Scene()
     const bgscene = new THREE.Scene()
     scene.background = null
-    // scene.fog = new THREE.Fog(0, 0.1, 15)
-
-    const loader = new THREE.TextureLoader()
-    const texture = loader.load('bg02.png', () => {
-        texture.magFilter = THREE.NearestFilter
-        texture.minFilter = THREE.NearestFilter
-        const rt = new THREE.WebGLCubeRenderTarget(texture.image.height)
-        rt.fromEquirectangularTexture(renderer, texture)
-        bgscene.background = rt
-    })
-
-    // const helperGeometry = new THREE.BoxGeometry(100, 100, 100, 4, 4, 4)
-    // const helperMaterial = new THREE.MeshBasicMaterial({ color: 0xff00ff, wireframe: true })
-    // const helper = new THREE.Mesh(helperGeometry, helperMaterial)
-    // scene.add(helper)
-
     renderer.setPixelRatio(window.devicePixelRatio)
     renderer.setClearColor(0xff0000, 0)
     renderer.setSize(window.innerWidth, window.innerHeight)
@@ -438,8 +422,27 @@ export function* main () {
     // create local schedule for main mechanic
     const gameSched = new coro.Schedule()
 
+    function* drift(scene, asset, i, x, y, z) {
+        const obj = asset.clone()
+        obj.scale.set(i*.25, i*.25, i*.25)
+        obj.material.transparent = true
+        obj.material.opacity = .125*i
+        obj.rotation.set(Math.random()*Math.PI,Math.random()*Math.PI,Math.random()*Math.PI)
+        scene.add(obj)
+        while (true) {
+            obj.rotation.x += 0.001 * x
+            obj.rotation.y += 0.001 * y
+            obj.rotation.z += 0.001 * z
+            yield
+        }
+    }
+
+    gameSched.add(drift(bgscene, assets.clouds, 1, 1, -2, 1))
+    gameSched.add(drift(bgscene, assets.clouds, 2, 2, 1, -1))
+    gameSched.add(drift(bgscene, assets.clouds, 3, -1, -1, 2))
+    bgscene.background = new THREE.Color(0, 0, 0)
+    
     // debug sync
-    // scene.background = new THREE.Color(0, 0, 0)
     // const analyzer = sound.context.createAnalyser()
     // analyzer.fftSize = 2048
     // let bufferLength = analyzer.frequencyBinCount;
