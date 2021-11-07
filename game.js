@@ -231,15 +231,15 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
     }
 
     function accuracyToScore(accuracy) {
-        if(accuracy > 0.9) {
+        if(accuracy > 0.8) {
             debug.alert('PERFECT')
             return 1
             
-        } else if(accuracy > 0.8) {
+        } else if(accuracy > 0.7) {
             debug.alert('GREAT')
             return 0.8
 
-        } else if(accuracy > 0.6) {
+        } else if(accuracy > 0.5) {
             debug.alert('GOOD')
             return 0.6
 
