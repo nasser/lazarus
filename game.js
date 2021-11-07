@@ -39,7 +39,7 @@ function parseLevelData(text) {
                     if(from === to)
                         return { type: "beat", time: parseFloat(from), direction }
                     return { type: "sustain", from: parseFloat(from), to:parseFloat(to), direction }
-                }).slice(1, 2)
+                })
 }
 
 function* waitLoadGltf (url) {
