@@ -12,6 +12,7 @@ import * as gizmos from './gizmos.js'
 import * as audio from './audio.js'
 import { Input, time } from './input.js'
 import { finalPass } from './final-pass.js'
+import { gone, hide, waitEvent } from './common.js'
 
 const gltfLoader = new GLTFLoader()
 
@@ -38,7 +39,7 @@ function parseLevelData(text) {
                     if(from === to)
                         return { type: "beat", time: parseFloat(from), direction }
                     return { type: "sustain", from: parseFloat(from), to:parseFloat(to), direction }
-                })
+                }).slice(1, 2)
 }
 
 function* waitLoadGltf (url) {
@@ -48,15 +49,6 @@ function* waitLoadGltf (url) {
     })
     while(value === null) yield
     return value
-}
-
-function* waitEvent (element, event, cb) {
-    let done = false
-    element.addEventListener(event, (...args) => {
-        done = true
-        if(cb) cb(...args)
-    })
-    while (!done) yield
 }
 
 const input = new Input([
@@ -133,7 +125,8 @@ const lerp = (x, y, a) => x * (1 - a) + y * a
 const invlerp = (x, y, a) => clamp((a - x) / (y - x))
 const clamp = (a, min = 0, max = 1) => Math.min(max, Math.max(min, a))
 const range = ( in_min, in_max, out_min, out_max, toLerp ) => clamp(lerp(out_min, out_max, invlerp(in_min, in_max, toLerp)), out_min, out_max)
- 
+let gameOver = false
+
 function* beatsMechanic (scene, camera, assets, sound, levelData) {
     let totalScore = 0
     const directionToAngle = { right:0, up:1, left:2, down:3 }
@@ -309,13 +302,17 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
     yield* coro.waitFirst([
         positionTargets(),
         function* () {
-            while(true) {
+            let n = 4
+            while(n-- > 0) {
                 debug.alert(`${final.toFixed(2)}% -- ${finalLabel}`)
                 yield* coro.wait(1)
                 yield
             }
         }
     ])
+
+    sound.pause()
+    gameOver = true
 }
 
 const onMobie = navigator.userAgent.match(/Android|iPhone/)
@@ -385,6 +382,7 @@ function* directionIndicator(canvas) {
 }
 
 export function* main () {
+    gameOver = false
     // wait for interaction and init scene
     const overlay = document.getElementById('overlay')
     const startButton = document.getElementById('startButton')
@@ -432,7 +430,11 @@ export function* main () {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5)
     directionalLight.position.z -= 1
     scene.add(directionalLight)
-    overlay.remove()
+    hide(overlay)
+    yield* coro.wait(0.5)
+    gone(overlay)
+    startButton.removeAttribute('disabled')
+    startButton.innerHTML = "Start Game"
 
     // create local schedule for main mechanic
     const gameSched = new coro.Schedule()
@@ -491,7 +493,7 @@ export function* main () {
     gameSched.add(directionIndicator(renderer.domElement))
 
     // main loop
-    while (true) {
+    while (!gameOver) {
         input.update()
         gizmos.reset()
         controls.update()

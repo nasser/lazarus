@@ -1,9 +1,11 @@
+@import url('https://fonts.googleapis.com/css2?family=Bungee+Hairline&display=swap');
 @import url('https://fonts.cdnfonts.com/css/hiruko');
 
 html, body {
 	height: 100%;
 	width: 100%;
 }
+
 body {
 	margin: 0;
 	background-color: #000;
@@ -12,7 +14,17 @@ body {
 	font-size: 13px;
 	line-height: 24px;
 	overscroll-behavior: none;
+	pointer-events: none;
 }
+
+* {
+	overflow: hidden;
+}
+
+h1 {
+	overflow: visible;
+}
+
 
 a {
 	color: #ff0;
@@ -55,7 +67,7 @@ a, button, input, select {
 	z-index: 2 !important; /* TODO Solve this in HTML */
 }
 
-#overlay {
+.menu {
 	position: absolute;
 	font-size: 16px;
 	z-index: 2;
@@ -70,21 +82,48 @@ a, button, input, select {
 	background: rgba(0,0,0,0.7);
 }
 
-	#overlay button {
-		background: transparent;
-		border: 0;
-		border: 1px solid rgb(255, 255, 255);
-		border-radius: 4px;
-		color: #ffffff;
-		padding: 12px 18px;
-		text-transform: uppercase;
-		cursor: pointer;
-	}
+.menu h1 {
+	font-family: 'Bungee Hairline', cursive;
+	font-size: 80px;
+	position: absolute;
+	top: 0;
+}
 
-	#overlay button[disabled] {
-		color: #999;
-		border: 1px solid #999;
+@media only screen and (max-height: 500px) {
+	.menu h1 {
+		font-size: 50px;
 	}
+	.menu button {
+		font-size: 15px !important;
+	}
+	.menu p {
+		font-size: 15px !important;
+	}
+  }
+
+.menu button {
+	background: transparent;
+	border: 0;
+	border-radius: 4px;
+	color: #ffffff;
+	background: #333;
+	padding: 12px 18px;
+	text-transform: uppercase;
+	cursor: pointer;
+	font-family: 'Bungee Hairline', cursive;
+	font-size: 40px;
+	font-weight: bold;
+	margin-bottom: 10px;
+}
+
+.menu button:hover {
+	background: #444;
+}
+
+.menu button[disabled] {
+	color: #999;
+	border: 1px solid #999;
+}
 
 #notSupported {
 	width: 50%;
@@ -92,6 +131,24 @@ a, button, input, select {
 	background-color: #f00;
 	margin-top: 20px;
 	padding: 10px;
+}
+
+.menu {
+	opacity: 1;
+	transition: opacity 0.5s;
+}
+
+.menu.hidden {
+	opacity: 0;
+}
+
+.menu.gone {
+	display: none;
+}
+
+.menu p {
+	font-size: 20px;
+	padding: 0 50px;
 }
 
 div.accel-debug {
@@ -116,6 +173,7 @@ div.accel-debug {
 	padding: 0;
 	margin: 0;
 	color: white;
+	overflow: hidden;
 }
 
 #debug code {

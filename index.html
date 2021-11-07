@@ -6,13 +6,25 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
     <link type="text/css" rel="stylesheet" href="main.css">
-    <script src="https://cdn.jsdelivr.net/npm/simplex-noise@2.4.0/simplex-noise.js"></script>
     <script type="module" src="v0.js"></script>
 </head>
 
 <body>
-    <div id="overlay">
-        <button id="startButton">Start</button>
+    <div class="menu hidden gone" id="overlay">
+        <h1>LAZARUS</h1>
+        <p>Line up incoming targets on the beat.</p>
+        <p>Make sure to allow plenty of space around you while playing!</p>
+        <button id="startButton">Start Game</button>
+    </div>
+    <div class="menu hidden gone" id="end">
+        <h1>LAZARUS</h1>
+        <p>Great job! Now, take time for your breathing to settle and then complete your airway clearance techniques before starting the next round.</p>
+        <button class="next">Next Round</button>
+    </div>
+    <div class="menu gone" id="difficulty">
+        <h1>LAZARUS</h1>
+        <button class="normal">Normal</button>
+        <button class="hard">Hard</button>
     </div>
 </body>
 
