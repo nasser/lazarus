@@ -277,11 +277,11 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
 
     const final = totalScore / levelData.length * 100
     let finalLabel
-    if(final > 0.9) {
+    if(final > 90) {
         finalLabel = 'EXCELLENT'
-    } else if(final > 0.8) {
+    } else if(final > 80) {
         finalLabel = 'AMAZING'
-    } else if(final > 0.6) {
+    } else if(final > 60) {
         finalLabel = 'PRETTY GOOD'
     } else {
         finalLabel = 'KEEP PRACTICING'
