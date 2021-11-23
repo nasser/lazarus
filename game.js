@@ -60,21 +60,9 @@ const input = new Input([
  * @returns an input function returning { now, delta } based on audio time
  */
 function audioTime(audio) {
-    let startTime = null
     let playhead = 0
-    let accumulated = 0
-    let playing = false
     return function audioTime(_, prev) {
         playhead = audio.currentTime
-        // if(!playing && audio.isPlaying) {
-        //     startTime = audio.currentTime
-        // } else if(playing && !audio.isPlaying) {
-        //     accumulated = playhead
-        // }
-        // playing = audio.isPlaying;
-        // if(playing)
-        //     playhead = accumulated + audio.currentTime - startTime
-        
         let now = playhead
         let delta = !prev ? 0 : now - prev.audioTime.now;
         return { now, delta }
@@ -261,7 +249,7 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
     function scoringSustain() {
         let totalFrames = 0
         let goodFrames = 0
-        return function(direction, duration, originalDuration) {
+        return function(direction, duration) {
             if(duration === 0) {
                 return accuracyToScore(goodFrames / totalFrames)
 
@@ -315,7 +303,7 @@ function* beatsMechanic (scene, camera, assets, sound, levelData) {
     gameOver = true
 }
 
-const onMobie = navigator.userAgent.match(/Android|iPhone/)
+const onMobile = navigator.userAgent.match(/Android|iPhone/)
 
 /**
  * annoyingly must be called from button callback on iOS, can't just be a coro
@@ -324,9 +312,9 @@ const onMobie = navigator.userAgent.match(/Android|iPhone/)
 function initScene () {
     const renderer = new THREE.WebGLRenderer({ alpha:false })
     const camera = new THREE.PerspectiveCamera(120, window.innerWidth / window.innerHeight, 0.01, 1100)
-    if(!onMobie)
+    if(!onMobile)
         camera.position.y += 0.5
-    const controls = onMobie ? new DeviceOrientationControls(camera) : new OrbitControls(camera, renderer.domElement)
+    const controls = onMobile ? new DeviceOrientationControls(camera) : new OrbitControls(camera, renderer.domElement)
     const scene = new THREE.Scene()
     const bgscene = new THREE.Scene()
     scene.background = null
@@ -365,18 +353,11 @@ function initScene () {
 }
 
 function* directionIndicator(canvas) {
-    const onStyle = "10px solid yellow"
-    const offStyle = "10px solid black"
-    
     while (true) {
         input.now.direction.left ? canvas.classList.add("indicate-left") : canvas.classList.remove("indicate-left")
         input.now.direction.right ? canvas.classList.add("indicate-right") : canvas.classList.remove("indicate-right")
         input.now.direction.up ? canvas.classList.add("indicate-top") : canvas.classList.remove("indicate-top")
         input.now.direction.down ? canvas.classList.add("indicate-bottom") : canvas.classList.remove("indicate-bottom")
-        // canvas.style.borderLeft = input.now.direction.left ? onStyle : offStyle
-        // canvas.style.borderRight = input.now.direction.right ? onStyle : offStyle
-        // canvas.style.borderTop = input.now.direction.up ? onStyle : offStyle
-        // canvas.style.borderBottom = input.now.direction.down ? onStyle : offStyle
         yield
     }
 }
@@ -389,7 +370,7 @@ export function* main () {
     let audioBuffers = null
     let renderer, bloomComposer, finalComposer, camera, scene, bgscene, controls
     yield* waitEvent(startButton, 'click', () => {
-        if(onMobie && document.body.requestFullscreen)
+        if(onMobile && document.body.requestFullscreen)
             document.body.requestFullscreen()
         // listener = audio.initListener()
         const i = initScene()
