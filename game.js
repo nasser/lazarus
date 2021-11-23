@@ -362,7 +362,7 @@ function* directionIndicator(canvas) {
     }
 }
 
-export function* main () {
+export function* main (difficulty) {
     gameOver = false
     // wait for interaction and init scene
     const overlay = document.getElementById('overlay')
@@ -462,7 +462,7 @@ export function* main () {
     //     }
     // })
 
-    const levelData = parseLevelData(yield* waitFetch("mario.txt"))
+    const levelData = parseLevelData(yield* waitFetch(`mario-${difficulty}.txt`))
 
     // schedule mechanic
     gameSched.add(function* () {

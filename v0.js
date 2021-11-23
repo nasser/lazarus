@@ -6,8 +6,8 @@ import { mainMenu, endMenu } from './menus.js'
 const sched = new coro.Schedule()
 
 sched.add(function* () {
-    yield* mainMenu()
-    yield* main()
+    let difficulty = yield* mainMenu()
+    yield* main(difficulty)
     yield* endMenu()
     location.reload()
 })

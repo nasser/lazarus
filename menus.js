@@ -14,14 +14,15 @@ export function* mainMenu() {
     here(difficulty)
     yield
     show(difficulty)
-    yield* coro.waitFirst([waitEvent(normalButton, 'click'), waitEvent(hardButton, 'click')])
-    // TODO choose difficulty
+    let button = yield* coro.waitFirst([waitEvent(normalButton, 'click'), waitEvent(hardButton, 'click')])
+    let choice = button.getAttribute('class')
     hide(difficulty)
     yield* coro.wait(0.5)
     gone(difficulty)
     here(overlay)
     yield
     show(overlay)
+    return choice
 }
 
 export function* endMenu () {
